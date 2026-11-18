@@ -1,0 +1,16 @@
+"""arq worker entrypoint: `arq app.worker.main.WorkerSettings`.
+
+Long-lived human approvals and multi-day negotiations are a better fit for a
+durable workflow engine. Temporal is the intended future option and is not
+wired in this skeleton; arq only runs short jobs.
+"""
+
+from arq.connections import RedisSettings
+
+from app.config import settings
+from app.worker.jobs import execute_approval, index_document
+
+
+class WorkerSettings:
+    functions = [execute_approval, index_document]
+    redis_settings = RedisSettings.from_dsn(settings.redis_url)
