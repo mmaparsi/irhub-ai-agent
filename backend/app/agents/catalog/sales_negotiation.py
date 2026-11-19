@@ -1,6 +1,8 @@
 from app.agents.registry import AgentSpec
 from app.config import settings
 
+_strong, _fast = settings.resolved_model_defaults()
+
 SPEC = AgentSpec(
     slug="sales_negotiation",
     name="Sales Negotiation",
@@ -13,7 +15,7 @@ SPEC = AgentSpec(
         "یا ارسال‌شده اعلام نکن. ارسال ایمیل هم فقط از مسیر تأیید انسان است."
     ),
     allowed_tools=("propose_price", "crm_lookup", "send_email", "knowledge_search"),
-    model_strong=settings.model_strong_default,
-    model_fast=settings.model_fast_default,
+    model_strong=_strong,
+    model_fast=_fast,
     temperature=0.3,
 )

@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 from app.auth.security import hash_password
 from app.config import settings
 from app.database import open_session
+from app.llm_defaults import apply_default_models
 from app.models import Agent, Company, Contact, Deal, Lead, ToolRecord, User
+from app.utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -77,25 +79,62 @@ def _seed_tools(db: Session, tool_registry) -> None:
 
 
 def _seed_agents(db: Session, registry) -> None:
+    """Insert missing plugins and refresh rows that still use automatic models.
+
+    The resolved strong/fast pair follows the configured provider key. An
+    admin's custom model (`model_*_is_default` is False) is not replaced.
+    Rows seeded before that flag existed are updated only when they still
+    hold a shipped default whose provider key is missing.
+    """
+    strong, fast = settings.resolved_model_defaults()
+    anthropic = bool(settings.anthropic_api_key.strip())
+    openai = bool(settings.openai_api_key.strip())
+    gemini = bool(settings.gemini_api_key.strip())
+    known = {spec.slug for spec in registry.list()}
+    rows = {row.slug: row for row in db.scalars(select(Agent)).all()}
     for spec in registry.list():
-        if db.scalar(select(Agent).where(Agent.slug == spec.slug)):
-            continue
-        db.add(
-            Agent(
-                slug=spec.slug,
-                name=spec.name,
-                name_fa=spec.name_fa,
-                description=spec.description,
-                system_prompt=spec.system_prompt,
-                allowed_tools=list(spec.allowed_tools),
-                model_strong=spec.model_strong,
-                model_fast=spec.model_fast,
-                temperature=spec.temperature,
-                is_active=True,
-                source="builtin",
-                config={},
+        row = rows.get(spec.slug)
+        if row is None:
+            db.add(
+                Agent(
+                    slug=spec.slug,
+                    name=spec.name,
+                    name_fa=spec.name_fa,
+                    description=spec.description,
+                    system_prompt=spec.system_prompt,
+                    allowed_tools=list(spec.allowed_tools),
+                    model_strong=strong,
+                    model_fast=fast,
+                    model_strong_is_default=True,
+                    model_fast_is_default=True,
+                    temperature=spec.temperature,
+                    is_active=True,
+                    source="builtin",
+                    config={},
+                )
             )
-        )
+            continue
+        if apply_default_models(
+            row,
+            strong=strong,
+            fast=fast,
+            anthropic=anthropic,
+            openai=openai,
+            gemini=gemini,
+        ):
+            row.updated_at = utcnow()
+    for slug, row in rows.items():
+        if slug in known:
+            continue
+        if apply_default_models(
+            row,
+            strong=strong,
+            fast=fast,
+            anthropic=anthropic,
+            openai=openai,
+            gemini=gemini,
+        ):
+            row.updated_at = utcnow()
     db.flush()
 
 

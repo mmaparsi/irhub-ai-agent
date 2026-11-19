@@ -55,6 +55,10 @@ class Agent(Base):
     allowed_tools: Mapped[list[str]] = mapped_column(JSON, default=list)
     model_strong: Mapped[str] = mapped_column(String(255))
     model_fast: Mapped[str] = mapped_column(String(255))
+    # True: still an automatic default. False: an admin chose it.
+    # NULL: row from before the flag existed.
+    model_strong_is_default: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    model_fast_is_default: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     temperature: Mapped[float] = mapped_column(Float, default=0.3)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

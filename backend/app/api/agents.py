@@ -116,6 +116,8 @@ def create_agent(
         allowed_tools=body.allowed_tools,
         model_strong=body.model_strong.strip(),
         model_fast=body.model_fast.strip(),
+        model_strong_is_default=False,
+        model_fast_is_default=False,
         temperature=body.temperature,
         is_active=body.is_active,
         source="panel",
@@ -153,6 +155,10 @@ def update_agent(
         if isinstance(value, str):
             value = value.strip()
         setattr(agent, field, value)
+    if "model_strong" in data:
+        agent.model_strong_is_default = False
+    if "model_fast" in data:
+        agent.model_fast_is_default = False
     agent.updated_at = utcnow()
     write_audit(
         db,

@@ -53,6 +53,8 @@ class AgentOut(BaseModel):
     allowed_tools: list[str]
     model_strong: str
     model_fast: str
+    model_strong_is_default: bool | None = None
+    model_fast_is_default: bool | None = None
     temperature: float
     is_active: bool
     source: str

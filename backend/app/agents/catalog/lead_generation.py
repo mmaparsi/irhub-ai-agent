@@ -1,6 +1,8 @@
 from app.agents.registry import AgentSpec
 from app.config import settings
 
+_strong, _fast = settings.resolved_model_defaults()
+
 SPEC = AgentSpec(
     slug="lead_generation",
     name="Lead Generation",
@@ -14,7 +16,7 @@ SPEC = AgentSpec(
         "و ابزار send_email فقط یک درخواست تأیید می‌سازد."
     ),
     allowed_tools=("web_search", "web_fetch", "crm_lookup", "send_email"),
-    model_strong=settings.model_strong_default,
-    model_fast=settings.model_fast_default,
+    model_strong=_strong,
+    model_fast=_fast,
     temperature=0.4,
 )

@@ -15,8 +15,8 @@ const empty: AgentInput = {
   description: "",
   system_prompt: "",
   allowed_tools: [],
-  model_strong: "anthropic/claude-sonnet-4-5",
-  model_fast: "openai/gpt-4o-mini",
+  model_strong: "",
+  model_fast: "",
   temperature: 0.3,
   is_active: true,
 };
@@ -25,6 +25,8 @@ export default function NewAgentPage() {
   const { user, ready } = useAuth();
   const router = useRouter();
   const [tools, setTools] = useState<ToolInfo[]>([]);
+  const [initial, setInitial] = useState<AgentInput>(empty);
+  const [formReady, setFormReady] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -33,6 +35,16 @@ export default function NewAgentPage() {
 
   useEffect(() => {
     api<ToolInfo[]>("/api/tools").then(setTools).catch((err) => setError(errorText(err)));
+    api<{ model_strong_default: string; model_fast_default: string }>("/api/health")
+      .then((health) =>
+        setInitial((current) => ({
+          ...current,
+          model_strong: health.model_strong_default,
+          model_fast: health.model_fast_default,
+        })),
+      )
+      .catch(() => undefined)
+      .finally(() => setFormReady(true));
   }, []);
 
   return (
@@ -40,8 +52,8 @@ export default function NewAgentPage() {
       <PageHeader title="عامل جدید" description="از پنل ساخته می‌شود و همان اجراکنندهٔ عمومی متخصص را استفاده می‌کند." />
       {error ? <ErrorNote>{error}</ErrorNote> : null}
       <Card>
-        <AgentForm
-          initial={empty}
+        {formReady ? <AgentForm
+          initial={initial}
           tools={tools}
           submitLabel="ساخت عامل"
           onSubmit={async (value) => {
@@ -52,7 +64,7 @@ export default function NewAgentPage() {
               setError(errorText(err));
             }
           }}
-        />
+        /> : <p className="text-sm text-stone-500">در حال بارگذاری…</p>}
       </Card>
     </div>
   );

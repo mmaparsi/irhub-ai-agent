@@ -8,7 +8,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-RUN chmod +x docker-entrypoint.sh
+# A Windows checkout can leave CRLF in the script. The kernel then looks for
+# `/bin/sh\r` and fails with "no such file or directory".
+RUN sed -i 's/\r$//' docker-entrypoint.sh && chmod +x docker-entrypoint.sh
 
 EXPOSE 8000
 ENTRYPOINT ["./docker-entrypoint.sh"]

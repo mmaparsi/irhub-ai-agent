@@ -6,30 +6,57 @@ import math
 
 from app.config import settings
 from app.constants import EMBEDDING_DIM
+from app.llm_defaults import GEMINI_EMBEDDING_MODEL, OPENAI_EMBEDDING_MODEL
 
 logger = logging.getLogger(__name__)
 
 
 def embed_text(text: str) -> list[float]:
-    """Return a vector of EMBEDDING_DIM.
+    """Return a vector of EMBEDDING_DIM (1536), matching the pgvector column.
 
-    Uses a provider embedding when a real model key is configured and mock
-    mode is off. Otherwise a deterministic local vector keeps pgvector usable
-    without an API key. Replace `stub_embed` with a real embedder when ready.
+    OpenAI `text-embedding-3-small` is already 1536. Gemini
+    `gemini/text-embedding-004` is 768; `_fit` zero-pads it to 1536. Cosine
+    distance is unchanged by a shared zero tail, so the column is not resized
+    and older OpenAI vectors stay valid. Mock mode, or a missing key, uses the
+    deterministic local stub at the same width.
     """
-    if not settings.llm_is_mock() and settings.openai_api_key:
-        try:
-            import litellm
+    model = _provider_embedding_model()
+    if model is None:
+        return stub_embed(text)
+    try:
+        import litellm
 
-            response = litellm.embedding(
-                model="text-embedding-3-small",
-                input=(text or "")[:8000],
+        response = litellm.embedding(model=model, input=(text or "")[:8000])
+        vector = _extract_embedding(response)
+        if len(vector) != EMBEDDING_DIM:
+            logger.info(
+                "fitting embedding from %s dims to %s for %s",
+                len(vector),
+                EMBEDDING_DIM,
+                model,
             )
-            vector = list(response.data[0]["embedding"])
-            return _fit(vector, EMBEDDING_DIM)
-        except Exception:
-            logger.exception("embedding provider failed; using stub vector")
-    return stub_embed(text)
+        return _fit(vector, EMBEDDING_DIM)
+    except Exception:
+        logger.exception("embedding provider failed; using stub vector")
+        return stub_embed(text)
+
+
+def _provider_embedding_model() -> str | None:
+    if settings.llm_is_mock():
+        return None
+    if settings.openai_api_key.strip():
+        return OPENAI_EMBEDDING_MODEL
+    if settings.gemini_api_key.strip():
+        return GEMINI_EMBEDDING_MODEL
+    return None
+
+
+def _extract_embedding(response: object) -> list[float]:
+    data = response["data"] if isinstance(response, dict) else response.data  # type: ignore[attr-defined]
+    item = data[0]
+    if isinstance(item, dict):
+        return list(item["embedding"])
+    return list(item.embedding)
 
 
 def stub_embed(text: str) -> list[float]:

@@ -1,6 +1,8 @@
 from app.agents.registry import AgentSpec
 from app.config import settings
 
+_strong, _fast = settings.resolved_model_defaults()
+
 SPEC = AgentSpec(
     slug="research",
     name="Market Research",
@@ -13,7 +15,7 @@ SPEC = AgentSpec(
         "آمار را جعل نکن. اگر نمی‌دانی، شفاف بگو. برای دانش داخلی از knowledge_search استفاده کن."
     ),
     allowed_tools=("web_search", "web_fetch", "knowledge_search"),
-    model_strong=settings.model_strong_default,
-    model_fast=settings.model_fast_default,
+    model_strong=_strong,
+    model_fast=_fast,
     temperature=0.2,
 )

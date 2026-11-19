@@ -49,8 +49,11 @@ def root() -> dict[str, str]:
 @app.get("/api/health")
 def health(db: Session = Depends(get_db)) -> dict[str, object]:
     db.execute(text("SELECT 1"))
+    strong, fast = settings.resolved_model_defaults()
     return {
         "status": "ok",
         "mock_llm": settings.llm_is_mock(),
         "max_discount_percent": settings.max_discount_percent,
+        "model_strong_default": strong,
+        "model_fast_default": fast,
     }
