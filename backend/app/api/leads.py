@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import csv
+import io
+
 from fastapi import APIRouter, Depends
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,6 +14,42 @@ from app.models import Company, Contact, Deal, Lead, User
 from app.schemas import ContactOut, DealOut, LeadOut
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+
+
+@router.get("/export.csv")
+def export_leads(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+) -> Response:
+    from app.models import Company, Contact
+
+    leads = db.scalars(select(Lead)).all()
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        ["company", "city", "title", "status", "score", "contact", "email", "phone", "notes"]
+    )
+    for lead in leads:
+        company = db.get(Company, lead.company_id) if lead.company_id else None
+        contact = db.scalar(select(Contact).where(Contact.lead_id == lead.id))
+        writer.writerow(
+            [
+                company.name if company else "",
+                company.city if company else "",
+                lead.title,
+                lead.status,
+                lead.score,
+                contact.name if contact else "",
+                contact.email if contact else "",
+                contact.phone if contact else "",
+                lead.notes,
+            ]
+        )
+    return Response(
+        "\ufeff" + buffer.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=leads.csv"},
+    )
 
 
 @router.get("", response_model=list[LeadOut])

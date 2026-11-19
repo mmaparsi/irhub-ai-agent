@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge, Card, PageHeader } from "@/components/ui";
-import { api } from "@/lib/api";
+import { Badge, Button, Card, PageHeader } from "@/components/ui";
+import { TOKEN_KEY, api, apiBase } from "@/lib/api";
 import { leadStatus } from "@/lib/labels";
 import type { Lead } from "@/lib/types";
 import { useEffect, useState } from "react";
@@ -21,7 +21,30 @@ export default function LeadsPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeader title="سرنخ‌ها" description="نمونه‌های اولیه برای مشتری‌یابی. اتصال CRM هنوز ساخته نشده است." />
+      <PageHeader
+        title="سرنخ‌ها"
+        description="سرنخ‌هایی که عامل‌ها در CRM ساخته‌اند، به‌علاوه داده‌های نمونه."
+        action={
+          <Button
+            type="button"
+            onClick={async () => {
+              const token = localStorage.getItem(TOKEN_KEY);
+              const response = await fetch(`${apiBase()}/api/leads/export.csv`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+              });
+              const blob = await response.blob();
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "leads.csv";
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            خروجی CSV
+          </Button>
+        }
+      />
       <div className="space-y-3">
         {leads.map((lead) => (
           <Card key={lead.id}>

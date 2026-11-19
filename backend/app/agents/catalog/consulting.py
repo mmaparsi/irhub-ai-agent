@@ -13,7 +13,14 @@ SPEC = AgentSpec(
         "پیشنهاد، گام‌های عملی، ریسک‌ها و سؤال‌های باز را به فارسی توضیح بده. ادعاهای بازار را "
         "از قضاوت طراحی جدا کن و اگر به داده نیاز داری از web_search یا knowledge_search استفاده کن."
     ),
-    allowed_tools=("web_search", "web_fetch", "knowledge_search"),
+    allowed_tools=(
+        "web_search",
+        "web_fetch",
+        "knowledge_search",
+        "python_exec",
+        "memory_search",
+        "write_report",
+    ),
     model_strong=_strong,
     model_fast=_fast,
     temperature=0.4,

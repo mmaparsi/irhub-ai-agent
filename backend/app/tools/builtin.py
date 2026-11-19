@@ -4,13 +4,13 @@ from typing import Any
 
 from app.rules.business import BusinessRuleError
 from app.tools.base import Tool, ToolContext, ToolResult, tool_registry
-from app.tools.providers import get_crm_provider, get_fetch_provider, get_search_provider
+from app.tools.providers import get_crm_provider
 
 
 class WebSearchTool(Tool):
     name = "web_search"
-    description = "جست‌وجوی وب. پیاده‌سازی فعلی ساختگی است و ارائه‌دهنده قابل تعویض است."
-    provider = "stub"
+    description = "جست‌وجوی وب از طریق SearXNG، و در صورت تنظیم کلید از Tavily یا Brave."
+    provider = "searxng"
     input_schema = {
         "type": "object",
         "properties": {
@@ -22,19 +22,22 @@ class WebSearchTool(Tool):
     }
 
     def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
-        limit = int(arguments.get("limit") or 5)
-        limit = max(1, min(limit, 10))
-        results = get_search_provider().search(str(arguments["query"]), limit=limit)
+        from app.tools.search import search_web
+
+        try:
+            results = search_web(str(arguments["query"]), limit=int(arguments.get("limit") or 5))
+        except Exception as exc:
+            return ToolResult(ok=False, content=f"جست‌وجوی وب ناموفق بود: {exc}")
+        if not results:
+            return ToolResult(ok=True, content="نتیجه‌ای پیدا نشد.", data={"results": []})
         lines = [f"- {item['title']}: {item['snippet']} ({item['url']})" for item in results]
-        return ToolResult(
-            ok=True, content="\n".join(lines) or "نتیجه‌ای نبود.", data={"results": results}
-        )
+        return ToolResult(ok=True, content="\n".join(lines), data={"results": results})
 
 
 class WebFetchTool(Tool):
     name = "web_fetch"
-    description = "دریافت متن یک نشانی وب. پیاده‌سازی فعلی ساختگی است."
-    provider = "stub"
+    description = "دریافت و پاک‌سازی متن یک صفحهٔ وب."
+    provider = "httpx"
     input_schema = {
         "type": "object",
         "properties": {"url": {"type": "string"}},
@@ -43,7 +46,12 @@ class WebFetchTool(Tool):
     }
 
     def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
-        page = get_fetch_provider().fetch(str(arguments["url"]))
+        from app.tools.fetch import fetch_page
+
+        try:
+            page = fetch_page(str(arguments["url"]))
+        except Exception as exc:
+            return ToolResult(ok=False, content=f"دریافت صفحه ناموفق بود: {exc}")
         content = f"{page.get('title')}\n{page.get('text')}"
         return ToolResult(ok=True, content=content, data=page)
 
@@ -115,6 +123,7 @@ class _OutboundTool(Tool):
                 user_id=context.user_id,
                 conversation_id=context.conversation_id,
                 agent_id=context.agent_id,
+                task_id=context.task_id,
             )
         except BusinessRuleError as exc:
             return ToolResult(ok=False, content=exc.message, data={"code": exc.code})
@@ -180,6 +189,19 @@ class ProposePriceTool(_OutboundTool):
 
 
 def register_builtin_tools() -> None:
+    from app.tools.actions import (
+        BrowserTool,
+        CreateLeadTool,
+        DelegateTool,
+        ExportLeadsTool,
+        MemorySaveTool,
+        MemorySearchTool,
+        PythonExecTool,
+        SearchLeadsTool,
+        UpdateLeadTool,
+        WriteReportTool,
+    )
+
     for tool in (
         WebSearchTool(),
         WebFetchTool(),
@@ -188,6 +210,16 @@ def register_builtin_tools() -> None:
         SendEmailTool(),
         SendMessageTool(),
         ProposePriceTool(),
+        CreateLeadTool(),
+        UpdateLeadTool(),
+        SearchLeadsTool(),
+        ExportLeadsTool(),
+        MemorySaveTool(),
+        MemorySearchTool(),
+        WriteReportTool(),
+        PythonExecTool(),
+        BrowserTool(),
+        DelegateTool(),
     ):
         tool_registry.ensure(tool)
 

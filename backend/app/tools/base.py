@@ -13,6 +13,8 @@ class ToolContext:
     conversation_id: str | None = None
     agent_id: str | None = None
     agent_slug: str | None = None
+    task_id: str | None = None
+    thread_id: str | None = None
     db: Session | None = None
 
 

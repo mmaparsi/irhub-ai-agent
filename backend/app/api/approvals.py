@@ -105,7 +105,15 @@ async def decide(
         details={},
     )
     db.commit()
-    if body.decision == "approved":
+    handled_by_graph = bool((row.payload or {}).get("handled_by_graph")) and row.task_id
+    if handled_by_graph:
+        from app.api.tasks import enqueue_or_spawn
+
+        await enqueue_or_spawn(
+            row.task_id,
+            {"approved": body.decision == "approved", "note": body.note.strip()},
+        )
+    elif body.decision == "approved":
         queued = await enqueue("execute_approval", row.id)
         if not queued:
             logger.info("running approval inline because the queue is unavailable")

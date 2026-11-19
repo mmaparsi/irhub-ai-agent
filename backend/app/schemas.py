@@ -212,6 +212,29 @@ class KnowledgeOut(BaseModel):
     created_at: datetime
 
 
+class AgentTaskIn(BaseModel):
+    goal: str = Field(min_length=1, max_length=8000)
+    agent_id: str | None = None
+    agent_slug: str | None = None
+    max_steps: int = Field(default=12, ge=1, le=30)
+
+
+class AgentTaskOut(BaseModel):
+    id: str
+    goal: str
+    status: str
+    plan: str
+    report: str
+    step: int
+    max_steps: int
+    error: str
+    agent_id: str | None
+    agent_name: str | None
+    created_at: datetime
+    updated_at: datetime
+    finished_at: datetime | None
+
+
 class DashboardOut(BaseModel):
     agents: int
     pending_approvals: int

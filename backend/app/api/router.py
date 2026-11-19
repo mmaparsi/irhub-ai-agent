@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api import agents, approvals, auth, chat, knowledge, leads, users
+from app.api import agents, approvals, auth, chat, knowledge, leads, tasks, users
 
 api = APIRouter(prefix="/api")
 api.include_router(auth.router)
@@ -10,3 +10,5 @@ api.include_router(chat.router)
 api.include_router(approvals.router)
 api.include_router(leads.router)
 api.include_router(knowledge.router)
+api.include_router(tasks.router)
+api.include_router(tasks.artifacts)

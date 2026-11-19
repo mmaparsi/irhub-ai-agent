@@ -14,7 +14,16 @@ SPEC = AgentSpec(
         "و قابل اقدام بنویس. برای دادهٔ زنده از web_search و web_fetch استفاده کن و "
         "آمار را جعل نکن. اگر نمی‌دانی، شفاف بگو. برای دانش داخلی از knowledge_search استفاده کن."
     ),
-    allowed_tools=("web_search", "web_fetch", "knowledge_search"),
+    allowed_tools=(
+        "web_search",
+        "web_fetch",
+        "browser",
+        "knowledge_search",
+        "memory_save",
+        "memory_search",
+        "python_exec",
+        "write_report",
+    ),
     model_strong=_strong,
     model_fast=_fast,
     temperature=0.2,

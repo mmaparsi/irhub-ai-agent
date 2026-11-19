@@ -15,6 +15,22 @@ services:
       timeout: 5s
       retries: 20
 
+  searxng:
+    image: searxng/searxng:latest
+    ports:
+      - "8088:8080"
+    volumes:
+      - ./infra/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      SEARXNG_BASE_URL: http://localhost:8088/
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+
   redis:
     image: redis:7-alpine
     ports:
@@ -32,6 +48,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://irhub:irhub@postgres:5432/irhub
       REDIS_URL: redis://redis:6379/0
+      SEARXNG_URL: http://searxng:8080
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
@@ -48,10 +65,10 @@ services:
       MODEL_FALLBACKS: ${MODEL_FALLBACKS:-}
       HTTP_PROXY: ${HTTP_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-postgres,redis,backend,frontend,worker,localhost,127.0.0.1}
+      NO_PROXY: ${NO_PROXY:-postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1}
       http_proxy: ${HTTP_PROXY:-}
       https_proxy: ${HTTPS_PROXY:-}
-      no_proxy: ${NO_PROXY:-postgres,redis,backend,frontend,worker,localhost,127.0.0.1}
+      no_proxy: ${NO_PROXY:-postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1}
       LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
@@ -61,11 +78,15 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-development}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - artifacts:/app/data/artifacts
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      searxng:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
       interval: 5s
@@ -80,6 +101,7 @@ services:
       RUN_MIGRATIONS: "0"
       DATABASE_URL: postgresql+psycopg://irhub:irhub@postgres:5432/irhub
       REDIS_URL: redis://redis:6379/0
+      SEARXNG_URL: http://searxng:8080
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
       MOCK_LLM: ${MOCK_LLM:-auto}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -92,21 +114,25 @@ services:
       MODEL_FALLBACKS: ${MODEL_FALLBACKS:-}
       HTTP_PROXY: ${HTTP_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-postgres,redis,backend,frontend,worker,localhost,127.0.0.1}
+      NO_PROXY: ${NO_PROXY:-postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1}
       http_proxy: ${HTTP_PROXY:-}
       https_proxy: ${HTTPS_PROXY:-}
-      no_proxy: ${NO_PROXY:-postgres,redis,backend,frontend,worker,localhost,127.0.0.1}
+      no_proxy: ${NO_PROXY:-postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1}
       LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
       LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - artifacts:/app/data/artifacts
     depends_on:
       backend:
         condition: service_healthy
       redis:
         condition: service_healthy
+      searxng:
+        condition: service_started
 
   frontend:
     build:
@@ -124,3 +150,4 @@ services:
 
 volumes:
   pgdata:
+  artifacts:

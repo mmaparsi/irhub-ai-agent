@@ -123,6 +123,7 @@ def _seed_agents(db: Session, registry) -> None:
             gemini=gemini,
         ):
             row.updated_at = utcnow()
+        _sync_builtin_tools(row, spec)
     for slug, row in rows.items():
         if slug in known:
             continue
@@ -136,6 +137,27 @@ def _seed_agents(db: Session, registry) -> None:
         ):
             row.updated_at = utcnow()
     db.flush()
+
+
+_PREVIOUS_TOOLS = {
+    "research": ["web_search", "web_fetch", "knowledge_search"],
+    "lead_generation": ["web_search", "web_fetch", "crm_lookup", "send_email"],
+    "sales_negotiation": ["propose_price", "crm_lookup", "send_email", "knowledge_search"],
+    "consulting": ["web_search", "web_fetch", "knowledge_search"],
+}
+
+
+def _sync_builtin_tools(row: Agent, spec) -> None:
+    config = dict(row.config or {})
+    if int(config.get("tools_version") or 1) >= 2:
+        return
+    current = list(row.allowed_tools or [])
+    previous = _PREVIOUS_TOOLS.get(row.slug)
+    if previous is not None and current == previous:
+        row.allowed_tools = list(spec.allowed_tools)
+    config["tools_version"] = 2
+    row.config = config
+    row.updated_at = utcnow()
 
 
 def _seed_samples(db: Session) -> None:

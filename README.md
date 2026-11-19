@@ -91,7 +91,7 @@ MODEL_FAST_DEFAULT=
 MODEL_FALLBACKS=gemini/gemini-flash-latest,gemini/gemini-3.8-flash,gemini/gemini-3.5-flash
 HTTPS_PROXY=http://host.docker.internal:10809
 HTTP_PROXY=http://host.docker.internal:10809
-NO_PROXY=postgres,redis,backend,frontend,worker,localhost,127.0.0.1
+NO_PROXY=postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1
 ```
 
 `HTTPS_PROXY` is optional. From inside Compose it must be a proxy on the host (`host.docker.internal` is mapped for this). `GEMINI_API_BASE` overrides the Gemini endpoint; `LLM_API_BASE` is the generic override.
@@ -108,6 +108,10 @@ ruff check . && ruff format --check .
 pytest
 cd ../frontend && npm ci && npm run lint && npm run build
 ```
+
+## Autonomous runs
+
+Each specialist is a LangGraph loop: plan, call tools, observe, and repeat until the goal is done or `max_steps` is reached. Tasks run in the arq worker. Checkpoints are stored in Postgres, so a restart or an approval pause can resume the same thread. Progress is stored as task events and streamed to the task page. Web search uses the bundled SearXNG service and honors `HTTPS_PROXY`. If Docker Hub is blocked, build with `DOCKER_BUILDKIT=0` and, when needed, `--build-arg HTTPS_PROXY=http://host.docker.internal:10809`.
 
 ## How to add an agent
 

@@ -5,7 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+ARG HTTP_PROXY=""
+ARG HTTPS_PROXY=""
+RUN if [ -n "$HTTPS_PROXY" ]; then export HTTP_PROXY HTTPS_PROXY; fi; \
+    pip install --no-cache-dir -r requirements.txt \
+    && python -m playwright install --with-deps chromium
 
 COPY . .
 # A Windows checkout can leave CRLF in the script. The kernel then looks for

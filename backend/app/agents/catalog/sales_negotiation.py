@@ -14,7 +14,14 @@ SPEC = AgentSpec(
         "قیمت باید با propose_price ثبت شود تا کارشناس آن را تأیید کند. هرگز تخفیف را نهایی "
         "یا ارسال‌شده اعلام نکن. ارسال ایمیل هم فقط از مسیر تأیید انسان است."
     ),
-    allowed_tools=("propose_price", "crm_lookup", "send_email", "knowledge_search"),
+    allowed_tools=(
+        "propose_price",
+        "send_email",
+        "search_leads",
+        "knowledge_search",
+        "memory_search",
+        "write_report",
+    ),
     model_strong=_strong,
     model_fast=_fast,
     temperature=0.3,

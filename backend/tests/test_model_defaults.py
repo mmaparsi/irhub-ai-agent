@@ -143,12 +143,13 @@ def test_seeded_agents_use_resolved_defaults(client) -> None:
     headers = auth_header(client)
     agents = client.get("/api/agents", headers=headers).json()
     builtins = [item for item in agents if item["source"] == "builtin"]
-    assert {item["slug"] for item in builtins} == {
+    assert {
         "research",
         "lead_generation",
         "sales_negotiation",
         "consulting",
-    }
+        "supervisor",
+    } <= {item["slug"] for item in builtins}
     for item in builtins:
         assert item["model_strong"] == health["model_strong_default"]
         assert item["model_fast"] == health["model_fast_default"]

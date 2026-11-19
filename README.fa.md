@@ -91,7 +91,7 @@ MODEL_FAST_DEFAULT=
 MODEL_FALLBACKS=gemini/gemini-flash-latest,gemini/gemini-3.8-flash,gemini/gemini-3.5-flash
 HTTPS_PROXY=http://host.docker.internal:10809
 HTTP_PROXY=http://host.docker.internal:10809
-NO_PROXY=postgres,redis,backend,frontend,worker,localhost,127.0.0.1
+NO_PROXY=postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1
 ```
 
 اگر در ایران ترافیک از v2rayN می‌گذرد، `HTTPS_PROXY` را همان `http://host.docker.internal:10809` بگذارید (پورت Mixed یا HTTP پروکسی v2rayN). کانتینر به پروکسی روی میزبان وصل می‌شود. `NO_PROXY` باید نام سرویس‌های کامپوز (postgres و redis و بقیه) را داشته باشد وگرنه خود پایگاه داده هم از پروکسی رد می‌شود. `GEMINI_API_BASE` نشانی اختصاصی جمینی است و `LLM_API_BASE` برای بقیهٔ مدل‌ها.
@@ -108,6 +108,14 @@ ruff check . && ruff format --check .
 pytest
 cd ../frontend && npm ci && npm run lint && npm run build
 ```
+
+## اجرای خودمختار
+
+هر عامل یک گراف LangGraph است: برنامه می‌ریزد، ابزار را صدا می‌زند، نتیجه را می‌بیند و تا تمام شدن هدف یا رسیدن به سقف گام تکرار می‌کند. وظیفه در کارگر arq اجرا می‌شود و با ری‌استارت از چک‌پوینت پستگرس ادامه پیدا می‌کند. از منوی «وظیفه‌ها» هدف را بنویسید، مثلاً:
+
+> ۳۰ تولیدکننده مبلمان در تهران را با اطلاعات تماس پیدا کن، به‌عنوان سرنخ ثبت کن و رتبه‌بندی کن
+
+پیشرفت (برنامه، هر ابزار، نتیجه و گزارش) زنده در همان صفحه می‌آید. ایمیل و پیشنهاد قیمت گراف را متوقف می‌کنند تا کارشناس در صف تأیید تصمیم بگیرد؛ بعد همان گراف از همان نقطه ادامه می‌دهد. جست‌وجوی وب از سرویس SearXNG داخل کامپوز است و پروکسی را رعایت می‌کند. اگر Docker Hub در ایران باز نشد، بیلد را با `DOCKER_BUILDKIT=0` و در صورت نیاز `--build-arg HTTPS_PROXY=http://host.docker.internal:10809` اجرا کنید.
 
 ## افزودن عامل جدید
 
@@ -141,7 +149,7 @@ API را دوباره راه بیندازید. `load_package` هر ماژولی 
 1. از `Tool` در `backend/app/tools/builtin.py` (یا ماژول تازه) ارث ببرید و `execute` را بنویسید.
 2. آن را در `register_builtin_tools` ثبت کنید.
 3. اگر ابزار ایمیل، پیام یا پیشنهاد قیمت می‌فرستد، `request_approval` را صدا بزنید و `enforce_outbound_rules` را گسترش دهید. اثر جانبی را داخل خود ابزار انجام ندهید.
-4. نام ابزار را در `allowed_tools` عامل بگذارید.
+4. نام ابزار را در `allowed_tools` عامل بگذارید. اگر ابزار اثر خارجی دارد، آن را `kind = "outbound"` کنید تا گراف با `interrupt()` منتظر تأیید بماند و فقط بعد از تأیید اجرا شود.
 
 ارائه‌دهنده را بدون دست زدن به عامل عوض کنید؛ مثلاً هنگام شروع `set_search_provider(my_provider)`.
 

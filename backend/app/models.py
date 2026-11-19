@@ -172,6 +172,7 @@ class ApprovalRequest(Base):
         ForeignKey("conversations.id"), nullable=True
     )
     agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"), nullable=True)
+    task_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     decision_note: Mapped[str] = mapped_column(Text, default="")
     rule_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -190,6 +191,65 @@ class KnowledgeDocument(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     meta: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
     uploaded_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentTask(Base):
+    __tablename__ = "agent_tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"), nullable=True)
+    goal: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
+    thread_id: Mapped[str] = mapped_column(String(64), unique=True)
+    plan: Mapped[str] = mapped_column(Text, default="")
+    report: Mapped[str] = mapped_column(Text, default="")
+    step: Mapped[int] = mapped_column(Integer, default=0)
+    max_steps: Mapped[int] = mapped_column(Integer, default=12)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TaskEvent(Base):
+    __tablename__ = "task_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    task_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_tasks.id", ondelete="CASCADE"), index=True
+    )
+    seq: Mapped[int] = mapped_column(Integer, default=0)
+    kind: Mapped[str] = mapped_column(String(32))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    dedupe_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Artifact(Base):
+    __tablename__ = "artifacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    task_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_tasks.id"), nullable=True, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255))
+    media_type: Mapped[str] = mapped_column(String(128), default="application/octet-stream")
+    path: Mapped[str] = mapped_column(String(512))
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AgentMemory(Base):
+    __tablename__ = "agent_memories"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(32), default="fact")
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
+    meta: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

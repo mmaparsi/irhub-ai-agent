@@ -17,6 +17,7 @@ def request_approval(
     user_id: str | None,
     conversation_id: str | None = None,
     agent_id: str | None = None,
+    task_id: str | None = None,
 ) -> ApprovalRequest:
     """Persist a pending approval. Rules run before the row is created.
 
@@ -32,6 +33,7 @@ def request_approval(
         requested_by=user_id,
         conversation_id=conversation_id,
         agent_id=agent_id,
+        task_id=task_id,
         rule_snapshot=snapshot,
     )
     db.add(row)

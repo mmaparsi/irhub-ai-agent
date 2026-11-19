@@ -15,7 +15,18 @@ SPEC = AgentSpec(
         "هیچ پیامی را مستقیم برای مشتری ارسال نکن؛ ارسال فقط پس از تأیید انسان انجام می‌شود "
         "و ابزار send_email فقط یک درخواست تأیید می‌سازد."
     ),
-    allowed_tools=("web_search", "web_fetch", "crm_lookup", "send_email"),
+    allowed_tools=(
+        "web_search",
+        "web_fetch",
+        "browser",
+        "create_lead",
+        "update_lead",
+        "search_leads",
+        "export_leads",
+        "send_email",
+        "memory_save",
+        "memory_search",
+    ),
     model_strong=_strong,
     model_fast=_fast,
     temperature=0.4,

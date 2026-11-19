@@ -39,7 +39,20 @@ def _execute(db: Session, approval_id: str) -> str:
     if row.execution_status == "executed":
         db.rollback()
         return "already"
-    logger.info("stub outbound execution id=%s type=%s", row.id, row.action_type)
+    if (row.payload or {}).get("handled_by_graph"):
+        db.rollback()
+        return "graph"
+    if row.action_type == "email":
+        from app.tools.smtp import send_email_smtp
+
+        message = send_email_smtp(
+            to=str(row.payload.get("to") or ""),
+            subject=str(row.payload.get("subject") or ""),
+            body=str(row.payload.get("body") or ""),
+        )
+        logger.info("email approval id=%s result=%s", row.id, message)
+    else:
+        logger.info("approved outbound recorded id=%s type=%s", row.id, row.action_type)
     row.execution_status = "executed"
     row.executed_at = utcnow()
     write_audit(
@@ -98,3 +111,18 @@ async def index_document(ctx, document_id: str) -> str:  # noqa: ANN001
     import asyncio
 
     return await asyncio.to_thread(index_document_sync, document_id)
+
+
+async def run_agent_task(ctx, task_id: str) -> None:  # noqa: ANN001
+    from app.runtime.executor import execute_task
+
+    await execute_task(task_id)
+
+
+async def resume_agent_task(ctx, task_id: str, decision_json: str) -> None:  # noqa: ANN001
+    import json
+
+    from app.runtime.executor import execute_task
+
+    decision = json.loads(decision_json)
+    await execute_task(task_id, resume=decision)

@@ -28,7 +28,7 @@ def client(monkeypatch: pytest.MonkeyPatch):
     name = uuid.uuid4().hex
     engine = create_engine(
         f"sqlite:///file:{name}?mode=memory&cache=shared&uri=true",
-        connect_args={"check_same_thread": False},
+        connect_args={"check_same_thread": False, "timeout": 5},
         poolclass=NullPool,
     )
 

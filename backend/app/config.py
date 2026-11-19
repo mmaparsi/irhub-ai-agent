@@ -46,6 +46,17 @@ class Settings(BaseSettings):
     http_proxy: str = ""
     https_proxy: str = ""
     no_proxy: str = ""
+    searxng_url: str = "http://searxng:8080"
+    tavily_api_key: str = ""
+    brave_api_key: str = ""
+    artifact_dir: str = "data/artifacts"
+    task_max_steps: int = 12
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_tls: bool = True
     langfuse_enabled: bool = False
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

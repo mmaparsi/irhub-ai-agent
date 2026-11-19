@@ -249,3 +249,91 @@ async def _stream_once(
                 }
             )
         yield ("tools", calls)
+
+
+async def complete_model(
+    *,
+    model: str,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    tools: list[dict[str, Any]] | None = None,
+    fast_model: str | None = None,
+    fallback_models: list[str] | None = None,
+) -> dict[str, Any]:
+    """Non-streaming completion with the same retry and fallback policy as streaming."""
+    configure_litellm()
+    chain = build_model_chain(
+        model,
+        fast_model,
+        settings.model_fallback_list() if fallback_models is None else fallback_models,
+    )
+    if not chain:
+        raise LLMCallError("unknown", model, persian_llm_error("unknown", model))
+    last_reason = "unknown"
+    last_model = chain[-1]
+    for candidate in chain:
+        attempts = max(1, settings.llm_retry_attempts)
+        for attempt in range(attempts):
+            try:
+                return await _complete_once(
+                    model=candidate,
+                    messages=messages,
+                    temperature=temperature,
+                    tools=tools,
+                )
+            except Exception as exc:
+                reason = classify_llm_error(exc)
+                last_reason = reason
+                last_model = candidate
+                logger.warning(
+                    "llm completion failed model=%s attempt=%s reason=%s error=%s",
+                    candidate,
+                    attempt + 1,
+                    reason,
+                    exc,
+                )
+                if reason in {"unavailable", "region"}:
+                    break
+                if _retryable(reason) and attempt + 1 < attempts:
+                    await asyncio.sleep(settings.llm_retry_base_seconds * (2**attempt))
+                    continue
+                break
+    raise LLMCallError(last_reason, last_model, persian_llm_error(last_reason, last_model))
+
+
+async def _complete_once(
+    *,
+    model: str,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    tools: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    import litellm
+
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+    }
+    base = api_base_for(model)
+    if base:
+        kwargs["api_base"] = base
+    if tools:
+        kwargs["tools"] = tools
+    response = await litellm.acompletion(**kwargs)
+    message = response.choices[0].message
+    calls = []
+    for call in getattr(message, "tool_calls", None) or []:
+        raw = call.function.arguments or "{}"
+        try:
+            arguments = json.loads(raw)
+        except json.JSONDecodeError:
+            arguments = {}
+        calls.append(
+            {
+                "id": call.id,
+                "name": call.function.name,
+                "arguments": arguments if isinstance(arguments, dict) else {},
+            }
+        )
+    return {"content": message.content or "", "tool_calls": calls}

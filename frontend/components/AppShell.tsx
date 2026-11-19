@@ -8,6 +8,7 @@ import { useEffect } from "react";
 
 const links = [
   { href: "/dashboard", label: "داشبورد" },
+  { href: "/tasks", label: "وظیفه‌ها" },
   { href: "/chat", label: "گفتگو" },
   { href: "/agents", label: "عامل‌ها" },
   { href: "/approvals", label: "تأییدها" },
