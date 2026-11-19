@@ -108,6 +108,22 @@ def test_legacy_model_with_a_key_stays() -> None:
     assert agent.model_fast_is_default is True
 
 
+def test_retired_gemini_25_migrates_while_the_key_is_present() -> None:
+    agent = _agent("gemini/gemini-2.5-pro", "gemini/gemini-2.5-flash", None, None)
+    apply_default_models(
+        agent,
+        strong=GEMINI_STRONG,
+        fast=GEMINI_FAST,
+        anthropic=False,
+        openai=False,
+        gemini=True,
+    )
+    assert agent.model_strong == GEMINI_STRONG
+    assert agent.model_fast == GEMINI_FAST
+    assert agent.model_strong_is_default is True
+    assert agent.model_fast_is_default is True
+
+
 def test_flagged_default_follows_new_resolution() -> None:
     agent = _agent(LEGACY_STRONG, LEGACY_FAST, True, True)
     apply_default_models(
@@ -189,7 +205,8 @@ def test_gemini_embedding_is_padded_to_column_width(monkeypatch) -> None:
     import litellm
 
     def fake_embedding(**kwargs):
-        assert kwargs["model"] == "gemini/text-embedding-004"
+        assert kwargs["model"] == "gemini/gemini-embedding-001"
+        assert kwargs["dimensions"] == 768
         return {"data": [{"embedding": [0.5, 0.25]}]}
 
     monkeypatch.setattr(litellm, "embedding", fake_embedding)

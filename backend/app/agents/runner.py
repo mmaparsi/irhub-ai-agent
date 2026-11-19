@@ -9,7 +9,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agents.llm import stream_model
+from app.agents.llm import LLMCallError, classify_llm_error, persian_llm_error, stream_model
 from app.config import settings
 from app.models import Agent, ToolRecord
 from app.tools.base import ToolContext, missing_required, tool_registry
@@ -113,7 +113,7 @@ def _mock_reply(agent: Agent, user_text: str, notes: list[str]) -> str:
         lines.extend(notes)
     lines.append("")
     lines.append(
-        "برای پاسخ واقعی، ANTHROPIC_API_KEY یا OPENAI_API_KEY را قرار دهید و MOCK_LLM را خاموش کنید."
+        "برای پاسخ واقعی، GEMINI_API_KEY یا ANTHROPIC_API_KEY یا OPENAI_API_KEY را قرار دهید و MOCK_LLM را خاموش کنید."
     )
     return "\n".join(lines)
 
@@ -187,6 +187,7 @@ async def iter_turn(
         try:
             async for kind, payload in stream_model(
                 model=model_for(agent, tier),
+                fast_model=agent.model_fast,
                 messages=messages,
                 temperature=agent.temperature,
                 tools=llm_tools,
@@ -195,9 +196,15 @@ async def iter_turn(
                     yield ("token", payload)
                 elif kind == "tools":
                     tool_calls = payload
-        except Exception:
+        except LLMCallError as exc:
+            logger.warning("llm chain failed reason=%s model=%s", exc.reason, exc.model)
+            for part in chunk_text(exc.user_message):
+                yield ("token", part)
+            return
+        except Exception as exc:
             logger.exception("llm call failed")
-            for part in chunk_text("فراخوانی مدل ناموفق بود. کلید و نام مدل را بررسی کنید."):
+            message = persian_llm_error(classify_llm_error(exc), model_for(agent, tier))
+            for part in chunk_text(message):
                 yield ("token", part)
             return
         if not tool_calls:

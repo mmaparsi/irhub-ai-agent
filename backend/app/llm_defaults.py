@@ -12,8 +12,11 @@ ANTHROPIC_STRONG = "anthropic/claude-sonnet-4-5"
 ANTHROPIC_FAST = "anthropic/claude-haiku-4-5"
 OPENAI_STRONG = "openai/gpt-4o"
 OPENAI_FAST = "openai/gpt-4o-mini"
-GEMINI_STRONG = "gemini/gemini-2.5-pro"
-GEMINI_FAST = "gemini/gemini-2.5-flash"
+GEMINI_STRONG = "gemini/gemini-pro-latest"
+GEMINI_FAST = "gemini/gemini-flash-latest"
+# 2.5 ids return 404 for new keys. Rows that still store them are migrated.
+RETIRED_GEMINI_STRONG = "gemini/gemini-2.5-pro"
+RETIRED_GEMINI_FAST = "gemini/gemini-2.5-flash"
 
 # Pair written by the first seed, before defaults followed the configured key.
 LEGACY_STRONG = ANTHROPIC_STRONG
@@ -21,6 +24,8 @@ LEGACY_FAST = OPENAI_FAST
 
 # Models this app itself may write. Anything else is treated as an admin choice
 # when `model_*_is_default` was never recorded.
+RETIRED_DEFAULT_MODELS = frozenset({RETIRED_GEMINI_STRONG, RETIRED_GEMINI_FAST})
+
 KNOWN_DEFAULT_MODELS = frozenset(
     {
         ANTHROPIC_STRONG,
@@ -29,10 +34,14 @@ KNOWN_DEFAULT_MODELS = frozenset(
         OPENAI_FAST,
         GEMINI_STRONG,
         GEMINI_FAST,
+        *RETIRED_DEFAULT_MODELS,
     }
 )
 
-GEMINI_EMBEDDING_MODEL = "gemini/text-embedding-004"
+# gemini-embedding-001 accepts an output size. 768 matches the old embedding
+# width; callers zero-pad to the pgvector column (1536).
+GEMINI_EMBEDDING_MODEL = "gemini/gemini-embedding-001"
+GEMINI_EMBEDDING_DIM = 768
 OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
 
 
@@ -78,6 +87,8 @@ def should_follow_default(
     flag existed: replace it only when it still holds a shipped default whose
     provider key is absent.
     """
+    if model in RETIRED_DEFAULT_MODELS:
+        return True
     if is_default is True:
         return True
     if is_default is False:
@@ -111,7 +122,7 @@ def apply_default_models(
         if agent.model_strong != strong:
             agent.model_strong = strong
             changed = True
-        if agent.model_strong_is_default is not True:
+        if agent.model_strong_is_default is None:
             agent.model_strong_is_default = True
             changed = True
     if should_follow_default(
@@ -124,7 +135,7 @@ def apply_default_models(
         if agent.model_fast != fast:
             agent.model_fast = fast
             changed = True
-        if agent.model_fast_is_default is not True:
+        if agent.model_fast_is_default is None:
             agent.model_fast_is_default = True
             changed = True
     return changed

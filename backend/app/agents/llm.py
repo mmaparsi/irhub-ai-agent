@@ -1,19 +1,129 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
+from app.config import settings
 from app.observability import configure_observability
 
-_OBSERVABILITY_READY = False
+logger = logging.getLogger(__name__)
+
+_READY = False
 
 
-def _ensure_observability() -> None:
-    global _OBSERVABILITY_READY
-    if not _OBSERVABILITY_READY:
+class LLMCallError(Exception):
+    """The model chain failed. `user_message` is safe to show in the panel."""
+
+    def __init__(self, reason: str, model: str, user_message: str) -> None:
+        self.reason = reason
+        self.model = model
+        self.user_message = user_message
+        super().__init__(user_message)
+
+
+def configure_litellm() -> None:
+    """Drop unsupported params (Gemini rejects temperature on some flash models)."""
+    global _READY
+    import litellm
+
+    litellm.drop_params = True
+    if not _READY:
         configure_observability()
-        _OBSERVABILITY_READY = True
+        _READY = True
+
+
+def build_model_chain(primary: str, fast: str | None, fallbacks: list[str]) -> list[str]:
+    """Primary, then the fast tier, then MODEL_FALLBACKS, without duplicates."""
+    chain: list[str] = []
+    for name in (primary, fast or "", *fallbacks):
+        cleaned = (name or "").strip()
+        if cleaned and cleaned not in chain:
+            chain.append(cleaned)
+    return chain
+
+
+def classify_llm_error(exc: BaseException) -> str:
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+    text = f"{type(exc).__name__} {exc}".lower()
+    if status == 429 or any(
+        token in text
+        for token in ("resource_exhausted", "quota", "rate limit", "too many requests")
+    ):
+        return "quota"
+    if status == 503 or any(
+        token in text for token in ("unavailable", "high demand", "overloaded", "503")
+    ):
+        return "overloaded"
+    if status == 404 or any(
+        token in text for token in ("no longer available", "not_found", "not found", "404")
+    ):
+        return "unavailable"
+    if any(
+        token in text
+        for token in ("user location", "location is not supported", "failed_precondition")
+    ) or ("region" in text and "not supported" in text):
+        return "region"
+    if any(
+        token in text
+        for token in (
+            "connecterror",
+            "connection",
+            "proxy",
+            "timeout",
+            "timed out",
+            "network",
+            "name or service not known",
+            "temporary failure",
+        )
+    ):
+        return "network"
+    return "unknown"
+
+
+def persian_llm_error(reason: str, model: str) -> str:
+    name = model or "مدل"
+    messages = {
+        "quota": (
+            f"سهمیهٔ رایگان مدل «{name}» تمام شده است (خطای ۴۲۹). "
+            "مدل‌های جایگزین هم پاسخ ندادند. کمی بعد دوباره تلاش کنید یا در گفتگو لایهٔ «سریع» را انتخاب کنید."
+        ),
+        "overloaded": (
+            f"مدل «{name}» الان شلوغ است و پاسخ نداد (خطای ۵۰۳، تقاضای زیاد). "
+            "چند لحظه بعد دوباره تلاش کنید."
+        ),
+        "region": (
+            "دسترسی به مدل از این موقعیت جغرافیایی مسدود شده است. "
+            "اگر در ایران هستید، HTTPS_PROXY را روی پروکسی محلی بگذارید "
+            "(برای v2rayN معمولاً http://host.docker.internal:10809)."
+        ),
+        "network": (
+            "اتصال به سرویس مدل برقرار نشد. پروکسی (HTTP_PROXY و HTTPS_PROXY) و اینترنت را بررسی کنید."
+        ),
+        "unavailable": (
+            f"مدل «{name}» دیگر برای این کلید در دسترس نیست. "
+            "پیش‌فرض‌ها را خالی بگذارید تا عامل‌ها به مدل فعلی مهاجرت کنند، یا نام مدل را در ویرایش عامل عوض کنید."
+        ),
+    }
+    return messages.get(
+        reason,
+        "فراخوانی مدل ناموفق بود. کلید، نام مدل و پروکسی را بررسی کنید.",
+    )
+
+
+def api_base_for(model: str) -> str:
+    if model.startswith("gemini/") and settings.gemini_api_base.strip():
+        return settings.gemini_api_base.strip()
+    return settings.llm_api_base.strip()
+
+
+def _retryable(reason: str) -> bool:
+    return reason in {"quota", "overloaded", "network"}
 
 
 async def stream_model(
@@ -22,12 +132,72 @@ async def stream_model(
     messages: list[dict[str, Any]],
     temperature: float,
     tools: list[dict[str, Any]] | None = None,
+    fast_model: str | None = None,
+    fallback_models: list[str] | None = None,
 ) -> AsyncIterator[tuple[str, Any]]:
     """Yield ('token', str) pieces, then ('tools', list) if the model called tools.
 
-    Tool-call chunks are buffered and emitted once at the end of the stream.
+    Retry 429, 503, and connection errors with backoff. Then try the fast tier
+    and `MODEL_FALLBACKS`. A 404 skips straight to the next model.
     """
-    _ensure_observability()
+    configure_litellm()
+    chain = build_model_chain(
+        model,
+        fast_model,
+        settings.model_fallback_list() if fallback_models is None else fallback_models,
+    )
+    if not chain:
+        raise LLMCallError("unknown", model, persian_llm_error("unknown", model))
+
+    last_reason = "unknown"
+    last_model = chain[-1]
+    for candidate in chain:
+        attempts = max(1, settings.llm_retry_attempts)
+        for attempt in range(attempts):
+            emitted = False
+            try:
+                async for event in _stream_once(
+                    model=candidate,
+                    messages=messages,
+                    temperature=temperature,
+                    tools=tools,
+                ):
+                    emitted = True
+                    yield event
+                if candidate != model:
+                    logger.info("llm fallback succeeded model=%s", candidate)
+                return
+            except Exception as exc:
+                reason = classify_llm_error(exc)
+                last_reason = reason
+                last_model = candidate
+                logger.warning(
+                    "llm call failed model=%s attempt=%s reason=%s error=%s",
+                    candidate,
+                    attempt + 1,
+                    reason,
+                    exc,
+                )
+                if emitted:
+                    raise LLMCallError(
+                        reason, candidate, persian_llm_error(reason, candidate)
+                    ) from exc
+                if reason == "unavailable" or reason == "region":
+                    break
+                if _retryable(reason) and attempt + 1 < attempts:
+                    await asyncio.sleep(settings.llm_retry_base_seconds * (2**attempt))
+                    continue
+                break
+    raise LLMCallError(last_reason, last_model, persian_llm_error(last_reason, last_model))
+
+
+async def _stream_once(
+    *,
+    model: str,
+    messages: list[dict[str, Any]],
+    temperature: float,
+    tools: list[dict[str, Any]] | None,
+) -> AsyncIterator[tuple[str, Any]]:
     import litellm
 
     kwargs: dict[str, Any] = {
@@ -36,6 +206,9 @@ async def stream_model(
         "temperature": temperature,
         "stream": True,
     }
+    base = api_base_for(model)
+    if base:
+        kwargs["api_base"] = base
     if tools:
         kwargs["tools"] = tools
     response = await litellm.acompletion(**kwargs)

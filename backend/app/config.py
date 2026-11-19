@@ -34,9 +34,18 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     gemini_api_key: str = ""
+    gemini_api_base: str = ""
+    llm_api_base: str = ""
     # Empty means "not set": resolved_model_defaults() chooses from the keys.
     model_strong_default: str = ""
     model_fast_default: str = ""
+    # Tried after the selected tier (and after the fast model, when the tier is strong).
+    model_fallbacks: str = ""
+    llm_retry_attempts: int = 2
+    llm_retry_base_seconds: float = 0.5
+    http_proxy: str = ""
+    https_proxy: str = ""
+    no_proxy: str = ""
     langfuse_enabled: bool = False
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
@@ -65,6 +74,9 @@ class Settings(BaseSettings):
         fast = self.model_fast_default.strip() or auto_fast
         return strong, fast
 
+    def model_fallback_list(self) -> list[str]:
+        return [item.strip() for item in self.model_fallbacks.split(",") if item.strip()]
+
     def llm_is_mock(self) -> bool:
         mode = self.mock_llm.strip().lower()
         if mode in {"1", "true", "yes", "on"}:
@@ -81,12 +93,29 @@ class Settings(BaseSettings):
             os.environ["OPENAI_API_KEY"] = self.openai_api_key.strip()
         if self.gemini_api_key.strip():
             os.environ["GEMINI_API_KEY"] = self.gemini_api_key.strip()
+        if self.gemini_api_base.strip():
+            os.environ["GEMINI_API_BASE"] = self.gemini_api_base.strip()
+        self._export_proxy()
         if self.langfuse_public_key:
             os.environ["LANGFUSE_PUBLIC_KEY"] = self.langfuse_public_key
         if self.langfuse_secret_key:
             os.environ["LANGFUSE_SECRET_KEY"] = self.langfuse_secret_key
         if self.langfuse_host:
             os.environ["LANGFUSE_HOST"] = self.langfuse_host
+
+    def _export_proxy(self) -> None:
+        """httpx and LiteLLM read the process environment, including from .env."""
+        pairs = (
+            ("HTTP_PROXY", "http_proxy", self.http_proxy),
+            ("HTTPS_PROXY", "https_proxy", self.https_proxy),
+            ("NO_PROXY", "no_proxy", self.no_proxy),
+        )
+        for upper, lower, value in pairs:
+            text = value.strip()
+            if not text:
+                continue
+            os.environ[upper] = text
+            os.environ[lower] = text
 
 
 settings = Settings()

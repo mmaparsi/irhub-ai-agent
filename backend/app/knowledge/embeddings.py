@@ -4,9 +4,10 @@ import hashlib
 import logging
 import math
 
+from app.agents.llm import api_base_for, configure_litellm
 from app.config import settings
 from app.constants import EMBEDDING_DIM
-from app.llm_defaults import GEMINI_EMBEDDING_MODEL, OPENAI_EMBEDDING_MODEL
+from app.llm_defaults import GEMINI_EMBEDDING_DIM, GEMINI_EMBEDDING_MODEL, OPENAI_EMBEDDING_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -15,10 +16,9 @@ def embed_text(text: str) -> list[float]:
     """Return a vector of EMBEDDING_DIM (1536), matching the pgvector column.
 
     OpenAI `text-embedding-3-small` is already 1536. Gemini
-    `gemini/text-embedding-004` is 768; `_fit` zero-pads it to 1536. Cosine
-    distance is unchanged by a shared zero tail, so the column is not resized
-    and older OpenAI vectors stay valid. Mock mode, or a missing key, uses the
-    deterministic local stub at the same width.
+    `gemini/gemini-embedding-001` is requested at 768 dimensions and zero-padded
+    to 1536. Cosine distance is unchanged by a shared zero tail, so the column
+    stays `vector(1536)`. Mock mode, or a missing key, uses the local stub.
     """
     model = _provider_embedding_model()
     if model is None:
@@ -26,7 +26,14 @@ def embed_text(text: str) -> list[float]:
     try:
         import litellm
 
-        response = litellm.embedding(model=model, input=(text or "")[:8000])
+        configure_litellm()
+        kwargs: dict = {"model": model, "input": (text or "")[:8000]}
+        if model == GEMINI_EMBEDDING_MODEL:
+            kwargs["dimensions"] = GEMINI_EMBEDDING_DIM
+        base = api_base_for(model)
+        if base:
+            kwargs["api_base"] = base
+        response = litellm.embedding(**kwargs)
         vector = _extract_embedding(response)
         if len(vector) != EMBEDDING_DIM:
             logger.info(

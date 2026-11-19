@@ -25,7 +25,7 @@ flowchart LR
   API -.-> Langfuse["Langfuse, off by default"]
 ```
 
-- **Models.** The product does not train a model. [LiteLLM](https://docs.litellm.ai/) calls frontier providers. Keys come from the environment (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). Every agent stores a **strong** model and a **fast** model. Leave `MODEL_STRONG_DEFAULT` and `MODEL_FAST_DEFAULT` empty and a single configured key selects both tiers: Gemini uses `gemini/gemini-2.5-pro` and `gemini/gemini-2.5-flash`, Anthropic uses `anthropic/claude-sonnet-4-5` and `anthropic/claude-haiku-4-5`, OpenAI uses `openai/gpt-4o` and `openai/gpt-4o-mini`. On startup, rows still marked as automatic defaults are updated. A model an admin edited is kept (`model_strong_is_default` / `model_fast_is_default` is false). If `MOCK_LLM=auto` and no key is set, the API returns a clearly marked Persian mock reply so the panel still runs.
+- **Models.** The product does not train a model. [LiteLLM](https://docs.litellm.ai/) calls frontier providers. Keys come from the environment (`GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`). Every agent stores a **strong** model and a **fast** model. Leave `MODEL_STRONG_DEFAULT` and `MODEL_FAST_DEFAULT` empty and a single configured key selects both tiers: Gemini uses `gemini/gemini-pro-latest` and `gemini/gemini-flash-latest`, Anthropic uses `anthropic/claude-sonnet-4-5` and `anthropic/claude-haiku-4-5`, OpenAI uses `openai/gpt-4o` and `openai/gpt-4o-mini`. Retired Gemini 2.5 ids are rewritten on startup. If the strong model returns 429 or 503, the call retries with backoff, then tries the fast model and `MODEL_FALLBACKS`. On startup, rows still marked as automatic defaults are updated. A model an admin edited is kept (`model_strong_is_default` / `model_fast_is_default` is false). If `MOCK_LLM=auto` and no key is set, the API returns a clearly marked Persian mock reply so the panel still runs.
 - **Orchestration.** A LangGraph graph has one supervisor node and one specialist node. The supervisor calls `route_task`. The specialist loads whichever agent the registry and the `agents` table describe. Adding an agent does not add a graph node. `POST /api/tasks` runs that compiled graph. The chat stream uses the same router and the same specialist runner, and emits tokens as server-sent events.
 - **Tools.** Tools implement one interface whose `to_mcp_tool()` shape matches an MCP `tools/list` item. `web_search` and `web_fetch` call a replaceable provider. The defaults are stubs. CRM lookup is a placeholder. Outbound tools (`send_email`, `send_message`, `propose_price`) do not send anything; they create an approval request.
 - **Human approval and rules.** An expert approves or rejects the request in the panel. Only then does the worker run the action, and today that run is a log line. The discount cap (`MAX_DISCOUNT_PERCENT`, default 15) is enforced in `app/rules/business.py` before a row is stored. A prompt cannot raise the cap.
@@ -40,7 +40,7 @@ flowchart LR
 - Experts chat with an agent (streaming) or let the supervisor route a task. Viewers can read.
 - Agent create/edit from the panel is stored in Postgres and used on the next turn.
 - Approval queue, hard discount cap, and a stub execution after approval.
-- Knowledge upload stores text and a vector. Search uses pgvector cosine distance on Postgres. The column stays `vector(1536)`. OpenAI embeddings are already that width. Gemini `gemini/text-embedding-004` is 768 values and is zero-padded to 1536, which does not change cosine distance. With no key, or in mock mode, the vector is a deterministic local stub of the same width.
+- Knowledge upload stores text and a vector. Search uses pgvector cosine distance on Postgres. The column stays `vector(1536)`. OpenAI embeddings are already that width. Gemini `gemini/gemini-embedding-001` is requested at 768 dimensions and zero-padded to 1536, which does not change cosine distance. With no key, or in mock mode, the vector is a deterministic local stub of the same width.
 - Audit rows for login, agent and user changes, approvals, and uploads.
 - Pytest for the registry, approval rules, and API auth. GitHub Actions runs Ruff, pytest, frontend lint, and the frontend build.
 
@@ -51,7 +51,7 @@ flowchart LR
 - Email, message, and price-offer execution never leaves the process. The worker logs the approved payload.
 - In mock mode a small keyword heuristic can call tools so the demo shows search results and approvals. Real mode follows the model's tool calls only.
 - The supervisor routes with a keyword table. The fast model tier is available for agent replies; it is not yet a classifier.
-- Embeddings call OpenAI `text-embedding-3-small` when that key is set, otherwise Gemini `gemini/text-embedding-004` (padded to 1536). Mock mode keeps the local stub.
+- Embeddings call OpenAI `text-embedding-3-small` when that key is set, otherwise Gemini `gemini/gemini-embedding-001` at 768 dimensions, padded to 1536. Mock mode keeps the local stub.
 - There is no SSO, object storage, or production secret manager.
 
 ## Project layout
@@ -88,7 +88,13 @@ GEMINI_API_KEY=your-key
 MOCK_LLM=auto
 MODEL_STRONG_DEFAULT=
 MODEL_FAST_DEFAULT=
+MODEL_FALLBACKS=gemini/gemini-flash-latest,gemini/gemini-3.8-flash,gemini/gemini-3.5-flash
+HTTPS_PROXY=http://host.docker.internal:10809
+HTTP_PROXY=http://host.docker.internal:10809
+NO_PROXY=postgres,redis,backend,frontend,worker,localhost,127.0.0.1
 ```
+
+`HTTPS_PROXY` is optional. From inside Compose it must be a proxy on the host (`host.docker.internal` is mapped for this). `GEMINI_API_BASE` overrides the Gemini endpoint; `LLM_API_BASE` is the generic override.
 
 `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` work the same way. `MOCK_LLM=auto` turns mock mode off when any of those keys is set. Set `MOCK_LLM=false` to require a real call even if you want startup to fail without a key.
 

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 import app.agents.catalog  # noqa: F401
 import app.tools.builtin  # noqa: F401
+from app.agents.llm import configure_litellm
 from app.api.router import api
 from app.config import settings
 from app.database import get_db
@@ -23,6 +24,7 @@ async def lifespan(_app: FastAPI):
     if settings.environment == "production" and settings.jwt_secret == "dev-only-change-me":
         raise RuntimeError("JWT_SECRET must be changed when ENVIRONMENT=production")
     configure_observability()
+    configure_litellm()
     import app.agents.catalog  # noqa: F401
     import app.tools.builtin  # noqa: F401
 
