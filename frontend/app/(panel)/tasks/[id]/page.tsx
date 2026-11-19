@@ -58,7 +58,7 @@ export default function TaskDetailPage() {
   useEffect(() => {
     load().catch((err) => setError(errorText(err)));
     const token = localStorage.getItem(TOKEN_KEY);
-    const source = new EventSourcePolyfill(`${apiBase()}/api/agent-tasks/${params.id}/stream`, token);
+    const source = openTaskStream(`${apiBase()}/api/agent-tasks/${params.id}/stream`, token);
     return () => source.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
@@ -157,7 +157,7 @@ function formatPayload(event: TaskEvent): string {
   return JSON.stringify(payload, null, 2);
 }
 
-function EventSourcePolyfill(url: string, token: string | null) {
+function openTaskStream(url: string, token: string | null): { close: () => void } {
   const controller = new AbortController();
   void (async () => {
     try {

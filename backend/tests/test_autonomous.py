@@ -151,7 +151,7 @@ def test_email_tool_pauses_and_resumes(client) -> None:
         json={"decision": "approved", "note": "بفرست"},
     )
     assert decided.status_code == 200, decided.text
-    _wait_until_done(task_id)
+    _wait_until_done(task_id, {"completed", "failed", "stopped"})
     db = open_session()
     try:
         task = db.get(AgentTask, task_id)
@@ -179,14 +179,18 @@ def _user_id(db) -> str:
     return user.id
 
 
-def _wait_until_done(task_id: str) -> None:
+def _wait_until_done(
+    task_id: str,
+    statuses: set[str] | None = None,
+) -> None:
     from app.database import open_session
 
-    for _ in range(50):
+    expected = statuses or {"completed", "failed", "stopped", "waiting_approval"}
+    for _ in range(80):
         db = open_session()
         try:
             task = db.get(AgentTask, task_id)
-            if task and task.status in {"completed", "failed", "stopped", "waiting_approval"}:
+            if task and task.status in expected:
                 return
         finally:
             db.close()
