@@ -94,7 +94,7 @@ HTTP_PROXY=http://host.docker.internal:10809
 NO_PROXY=postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1
 ```
 
-`HTTPS_PROXY` is optional. From inside Compose it must be a proxy on the host (`host.docker.internal` is mapped for this). `GEMINI_API_BASE` overrides the Gemini endpoint; `LLM_API_BASE` is the generic override.
+`HTTPS_PROXY` is optional. From inside Compose it must be a proxy on the host (`host.docker.internal` is mapped for this). `GEMINI_API_BASE` overrides the Gemini endpoint. `LLM_API_BASE` is the generic override and is not applied to `openrouter/` models, which keep LiteLLM's OpenRouter base. `OPENROUTER_API_KEY` is only for fallback models, not the primary tier. The free tier is about 50 free-model requests per day and upstream 429s are common. Example: `MODEL_FALLBACKS=openai/gpt-4.1-mini,openrouter/nvidia/nemotron-3-ultra-550b-a55b:free,openrouter/nvidia/nemotron-3.5-super-vl:free`.
 
 `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` work the same way. `MOCK_LLM=auto` turns mock mode off when any of those keys is set. Set `MOCK_LLM=false` to require a real call even if you want startup to fail without a key.
 

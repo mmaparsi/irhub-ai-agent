@@ -6,6 +6,7 @@ import pytest
 
 from app.agents.llm import (
     LLMCallError,
+    api_base_for,
     build_model_chain,
     classify_llm_error,
     configure_litellm,
@@ -48,6 +49,15 @@ def test_error_reasons_and_persian_text() -> None:
     assert "موقعیت" in persian_llm_error("region", "gemini/gemini-pro-latest")
     assert "اتصال" in persian_llm_error("network", "gemini/gemini-flash-latest")
     assert "در دسترس نیست" in persian_llm_error("unavailable", "gemini/gemini-2.5-pro")
+
+
+def test_openrouter_is_not_sent_to_llm_api_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "llm_api_base", "https://api.gapgpt.app/v1")
+    monkeypatch.setattr(settings, "gemini_api_base", "https://gemini.example")
+    assert api_base_for("openrouter/nvidia/nemotron-3-ultra-550b-a55b:free") == ""
+    assert api_base_for("openrouter/nvidia/nemotron-3.5-super-vl:free") == ""
+    assert api_base_for("openai/gpt-4.1-mini") == "https://api.gapgpt.app/v1"
+    assert api_base_for("gemini/gemini-flash-latest") == "https://gemini.example"
 
 
 def test_drop_params_is_enabled() -> None:

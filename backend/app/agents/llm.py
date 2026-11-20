@@ -117,6 +117,10 @@ def persian_llm_error(reason: str, model: str) -> str:
 
 
 def api_base_for(model: str) -> str:
+    # LiteLLM already targets OpenRouter. Forcing LLM_API_BASE (for example GapGPT)
+    # onto these calls would send them to the wrong host.
+    if model.startswith("openrouter/"):
+        return ""
     if model.startswith("gemini/") and settings.gemini_api_base.strip():
         return settings.gemini_api_base.strip()
     return settings.llm_api_base.strip()

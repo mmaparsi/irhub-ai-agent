@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     gemini_api_key: str = ""
+    # Fallback provider only. Does not select the default strong/fast models.
+    openrouter_api_key: str = ""
     gemini_api_base: str = ""
     llm_api_base: str = ""
     # Empty means "not set": resolved_model_defaults() chooses from the keys.
@@ -104,6 +106,8 @@ class Settings(BaseSettings):
             os.environ["OPENAI_API_KEY"] = self.openai_api_key.strip()
         if self.gemini_api_key.strip():
             os.environ["GEMINI_API_KEY"] = self.gemini_api_key.strip()
+        if self.openrouter_api_key.strip():
+            os.environ["OPENROUTER_API_KEY"] = self.openrouter_api_key.strip()
         if self.gemini_api_base.strip():
             os.environ["GEMINI_API_BASE"] = self.gemini_api_base.strip()
         self._export_proxy()
