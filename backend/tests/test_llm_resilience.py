@@ -9,9 +9,11 @@ from app.agents.llm import (
     api_base_for,
     build_model_chain,
     classify_llm_error,
+    complete_model,
     configure_litellm,
     persian_llm_error,
     stream_model,
+    to_provider_messages,
 )
 from app.config import Settings, settings
 
@@ -58,6 +60,103 @@ def test_openrouter_is_not_sent_to_llm_api_base(monkeypatch: pytest.MonkeyPatch)
     assert api_base_for("openrouter/nvidia/nemotron-3.5-super-vl:free") == ""
     assert api_base_for("openai/gpt-4.1-mini") == "https://api.gapgpt.app/v1"
     assert api_base_for("gemini/gemini-flash-latest") == "https://gemini.example"
+
+
+def test_internal_tool_calls_become_function_wire_format() -> None:
+    wired = {
+        "id": "call_kept",
+        "type": "function",
+        "function": {"name": "create_lead", "arguments": '{"city": "تهران"}'},
+    }
+    history = [
+        {"role": "user", "content": "سرنخ بساز"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {"id": "call_1", "name": "web_search", "arguments": {"query": "تهران"}},
+                {"id": "call_2", "name": "search_leads", "arguments": '{"query": "اصفهان"}'},
+                wired,
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call_1", "name": "web_search", "content": "نتیجه"},
+        {"role": "assistant", "content": "تمام", "tool_calls": []},
+    ]
+    prepared = to_provider_messages(history)
+    assert prepared[0] is history[0]
+    assert prepared[2] is history[2]
+    assert prepared[1]["tool_calls"] == [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "web_search", "arguments": '{"query": "تهران"}'},
+        },
+        {
+            "id": "call_2",
+            "type": "function",
+            "function": {"name": "search_leads", "arguments": '{"query": "اصفهان"}'},
+        },
+        wired,
+    ]
+    assert prepared[1]["tool_calls"][2] is wired
+    assert "tool_calls" not in prepared[3]
+    assert history[1]["tool_calls"][0]["arguments"] == {"query": "تهران"}
+
+
+def test_stream_and_complete_send_function_tool_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: list[list[dict[str, object]]] = []
+
+    async def fake_acompletion(**kwargs):
+        seen.append(kwargs["messages"])
+        if kwargs.get("stream"):
+
+            async def chunks():
+                yield _token_chunk("باشه")
+
+            return chunks()
+        message = type("Msg", (), {"content": "باشه", "tool_calls": None})()
+        choice = type("Choice", (), {"message": message})()
+        return type("Resp", (), {"choices": [choice]})()
+
+    monkeypatch.setattr(settings, "llm_retry_attempts", 1)
+    import litellm
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"id": "c1", "name": "web_search", "arguments": {"query": "ایران"}}],
+        }
+    ]
+    events = asyncio.run(
+        _collect(
+            model="openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+            fast_model=None,
+            fallback_models=[],
+            messages=messages,
+        )
+    )
+    completed = asyncio.run(
+        complete_model(
+            model="openrouter/nvidia/nemotron-3.5-super-vl:free",
+            messages=messages,
+            temperature=0.2,
+            fast_model=None,
+            fallback_models=[],
+        )
+    )
+    assert events == [("token", "باشه")]
+    assert completed["content"] == "باشه"
+    for sent in seen:
+        call = sent[0]["tool_calls"][0]
+        assert call["type"] == "function"
+        assert call["function"] == {"name": "web_search", "arguments": '{"query": "ایران"}'}
+    assert messages[0]["tool_calls"][0] == {
+        "id": "c1",
+        "name": "web_search",
+        "arguments": {"query": "ایران"},
+    }
 
 
 def test_drop_params_is_enabled() -> None:
@@ -182,9 +281,10 @@ def test_proxy_and_api_base_export(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def _collect(**kwargs: object) -> list[tuple[str, object]]:
     events: list[tuple[str, object]] = []
+    messages = kwargs.get("messages")
     async for kind, payload in stream_model(
         model=str(kwargs["model"]),
-        messages=[{"role": "user", "content": "سلام"}],
+        messages=messages if isinstance(messages, list) else [{"role": "user", "content": "سلام"}],
         temperature=0.2,
         fast_model=kwargs.get("fast_model") if isinstance(kwargs.get("fast_model"), str) else None,
         fallback_models=list(kwargs.get("fallback_models") or []),

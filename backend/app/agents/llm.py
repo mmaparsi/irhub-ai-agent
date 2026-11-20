@@ -116,6 +116,44 @@ def persian_llm_error(reason: str, model: str) -> str:
     )
 
 
+def to_provider_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rewrite assistant tool calls into the OpenAI function-call wire format.
+
+    Graph history stores ``{id, name, arguments}`` with ``arguments`` as a dict.
+    Strict providers reject that shape when a tool result follows. Calls that
+    already include ``function`` are left unchanged. An empty list is dropped.
+    """
+    prepared: list[dict[str, Any]] = []
+    for message in messages:
+        if message.get("role") != "assistant" or "tool_calls" not in message:
+            prepared.append(message)
+            continue
+        calls = [
+            _provider_tool_call(call)
+            for call in message.get("tool_calls") or []
+            if isinstance(call, dict)
+        ]
+        rewritten = {key: value for key, value in message.items() if key != "tool_calls"}
+        if calls:
+            rewritten["tool_calls"] = calls
+        prepared.append(rewritten)
+    return prepared
+
+
+def _provider_tool_call(call: dict[str, Any]) -> dict[str, Any]:
+    if "function" in call:
+        return call
+    arguments = call.get("arguments", {})
+    if not isinstance(arguments, str):
+        payload = arguments if isinstance(arguments, dict) else {}
+        arguments = json.dumps(payload, ensure_ascii=False)
+    return {
+        "id": call.get("id") or "",
+        "type": "function",
+        "function": {"name": call.get("name") or "", "arguments": arguments},
+    }
+
+
 def api_base_for(model: str) -> str:
     # LiteLLM already targets OpenRouter. Forcing LLM_API_BASE (for example GapGPT)
     # onto these calls would send them to the wrong host.
@@ -206,7 +244,7 @@ async def _stream_once(
 
     kwargs: dict[str, Any] = {
         "model": model,
-        "messages": messages,
+        "messages": to_provider_messages(messages),
         "temperature": temperature,
         "stream": True,
     }
@@ -316,7 +354,7 @@ async def _complete_once(
 
     kwargs: dict[str, Any] = {
         "model": model,
-        "messages": messages,
+        "messages": to_provider_messages(messages),
         "temperature": temperature,
     }
     base = api_base_for(model)
