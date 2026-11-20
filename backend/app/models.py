@@ -88,6 +88,11 @@ class Conversation(Base):
     agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(255), default="")
     status: Mapped[str] = mapped_column(String(32), default="open")
+    channel: Mapped[str] = mapped_column(String(32), default="panel")
+    party: Mapped[str] = mapped_column(String(32), default="customer")
+    contact_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    lead_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    external_key: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -100,6 +105,7 @@ class Message(Base):
     )
     seq: Mapped[int] = mapped_column(Integer, default=0)
     role: Mapped[str] = mapped_column(String(32))
+    direction: Mapped[str] = mapped_column(String(16), default="internal")
     content: Mapped[str] = mapped_column(Text)
     tool_calls: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -124,6 +130,7 @@ class Lead(Base):
     company_id: Mapped[str | None] = mapped_column(ForeignKey("companies.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(255))
     source: Mapped[str] = mapped_column(String(64), default="")
+    party: Mapped[str] = mapped_column(String(32), default="customer", index=True)
     status: Mapped[str] = mapped_column(String(32), default="new", index=True)
     score: Mapped[int] = mapped_column(Integer, default=0)
     notes: Mapped[str] = mapped_column(Text, default="")
@@ -141,6 +148,7 @@ class Contact(Base):
     email: Mapped[str] = mapped_column(String(255), default="")
     phone: Mapped[str] = mapped_column(String(64), default="")
     title: Mapped[str] = mapped_column(String(255), default="")
+    party: Mapped[str] = mapped_column(String(32), default="customer")
     created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
@@ -250,6 +258,60 @@ class AgentMemory(Base):
     content: Mapped[str] = mapped_column(Text)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     meta: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ChannelPolicy(Base):
+    __tablename__ = "channel_policies"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    agent_id: Mapped[str | None] = mapped_column(ForeignKey("agents.id"), nullable=True, index=True)
+    channel: Mapped[str] = mapped_column(String(32), index=True)
+    mode: Mapped[str] = mapped_column(String(16), default="approval")
+    daily_limit: Mapped[int] = mapped_column(Integer, default=20)
+
+
+class OptOut(Base):
+    __tablename__ = "opt_outs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    channel: Mapped[str] = mapped_column(String(32), index=True)
+    address: Mapped[str] = mapped_column(String(255), index=True)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OutreachLog(Base):
+    __tablename__ = "outreach_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    channel: Mapped[str] = mapped_column(String(32), index=True)
+    direction: Mapped[str] = mapped_column(String(8), default="out")
+    address: Mapped[str] = mapped_column(String(255), default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(32), default="sent")
+    agent_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ChannelState(Base):
+    __tablename__ = "channel_state"
+
+    channel: Mapped[str] = mapped_column(String(32), primary_key=True)
+    cursor: Mapped[str] = mapped_column(Text, default="")
+
+
+class ActivityEvent(Base):
+    __tablename__ = "activity_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    seq: Mapped[int] = mapped_column(Integer, default=0, index=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    role: Mapped[str] = mapped_column(String(32), default="")
+    task_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

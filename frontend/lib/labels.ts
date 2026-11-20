@@ -1,7 +1,32 @@
 export const roleLabel: Record<string, string> = {
-  admin: "مدیر",
+  admin: "مدیرکل سیستم",
+  sales: "کارشناس فروش",
+  supplier_acquisition: "کارشناس جذب تامین‌کننده",
   expert: "کارشناس",
   viewer: "بیننده",
+};
+
+export const partyLabel: Record<string, string> = {
+  customer: "مشتری",
+  supplier: "تأمین‌کننده",
+};
+
+export const channelLabel: Record<string, string> = {
+  panel: "پنل",
+  email: "ایمیل",
+  telegram: "تلگرام",
+  whatsapp: "واتساپ",
+  sms: "پیامک",
+};
+
+export const taskStatus: Record<string, string> = {
+  queued: "در صف",
+  running: "در حال اجرا",
+  waiting_approval: "منتظر تأیید",
+  stopping: "در حال توقف",
+  completed: "تمام شد",
+  failed: "ناموفق",
+  stopped: "متوقف",
 };
 
 export const leadStatus: Record<string, string> = {

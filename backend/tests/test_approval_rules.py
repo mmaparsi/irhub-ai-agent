@@ -115,17 +115,17 @@ def test_api_blocks_over_cap_and_executes_only_after_approval(client) -> None:
         "/api/users",
         headers=headers,
         json={
-            "email": "viewer@example.com",
-            "password": "viewer123",
-            "full_name": "بیننده",
-            "role": "viewer",
+            "email": "buyer2@example.com",
+            "password": "sales12345",
+            "full_name": "کارشناس فروش",
+            "role": "sales",
         },
     )
     assert denied.status_code == 201
-    viewer = auth_header(client, "viewer@example.com", "viewer123")
+    sales = auth_header(client, "buyer2@example.com", "sales12345")
     forbidden = client.post(
         f"/api/approvals/{body['id']}/decide",
-        headers=viewer,
+        headers=sales,
         json={"decision": "approved"},
     )
     assert forbidden.status_code == 403

@@ -21,7 +21,7 @@ export default function ApprovalsPage() {
   const [dealTitle, setDealTitle] = useState("");
   const [amount, setAmount] = useState("0");
   const [discount, setDiscount] = useState("10");
-  const canAct = user?.role === "admin" || user?.role === "expert";
+  const canAct = user?.role === "admin" || user?.role === "sales" || user?.role === "supplier_acquisition";
 
   async function load() {
     const [list, health] = await Promise.all([

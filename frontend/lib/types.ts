@@ -1,4 +1,4 @@
-export type Role = "admin" | "expert" | "viewer";
+export type Role = "admin" | "sales" | "supplier_acquisition";
 
 export type User = {
   id: string;
@@ -40,6 +40,8 @@ export type Conversation = {
   status: string;
   agent_id: string | null;
   agent_name: string | null;
+  channel?: string;
+  party?: string;
   created_at: string;
 };
 
@@ -75,6 +77,8 @@ export type Lead = {
   company_name: string;
   city: string;
   industry: string;
+  website?: string;
+  party?: string;
   contacts: { name: string; email: string; phone: string; title: string }[];
   deals: { title: string; value: number; currency: string; stage: string; discount_percent: number }[];
   created_at: string;
@@ -94,6 +98,7 @@ export type Dashboard = {
   pending_approvals: number;
   leads: number;
   documents: number;
+  running_tasks?: number;
   mock_llm: boolean;
   max_discount_percent: number;
 };

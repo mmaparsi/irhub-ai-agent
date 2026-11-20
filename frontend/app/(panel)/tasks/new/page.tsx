@@ -15,7 +15,7 @@ export default function NewTaskPage() {
   const [goal, setGoal] = useState("۳۰ تولیدکننده مبلمان در تهران را با اطلاعات تماس پیدا کن، در سرنخ‌ها ثبت کن و رتبه‌بندی کن");
   const [maxSteps, setMaxSteps] = useState(12);
   const [error, setError] = useState("");
-  const canSend = user?.role === "admin" || user?.role === "expert";
+  const canSend = user?.role === "admin" || user?.role === "sales" || user?.role === "supplier_acquisition";
 
   useEffect(() => {
     api<Agent[]>("/api/agents")

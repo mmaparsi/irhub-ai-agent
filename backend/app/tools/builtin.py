@@ -22,12 +22,16 @@ class WebSearchTool(Tool):
     }
 
     def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
+        from app.runtime.events import note_progress
         from app.tools.search import search_web
 
+        note_progress(context, "جست‌وجو شروع شد", query=str(arguments.get("query") or ""))
         try:
             results = search_web(str(arguments["query"]), limit=int(arguments.get("limit") or 5))
         except Exception as exc:
+            note_progress(context, "جست‌وجو ناموفق بود", ok=False)
             return ToolResult(ok=False, content=f"جست‌وجوی وب ناموفق بود: {exc}")
+        note_progress(context, f"{len(results)} نتیجه پیدا شد", count=len(results))
         if not results:
             return ToolResult(ok=True, content="نتیجه‌ای پیدا نشد.", data={"results": []})
         lines = [f"- {item['title']}: {item['snippet']} ({item['url']})" for item in results]
@@ -46,12 +50,17 @@ class WebFetchTool(Tool):
     }
 
     def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
+        from app.runtime.events import note_progress
         from app.tools.fetch import fetch_page
 
+        url = str(arguments["url"])
+        note_progress(context, f"در حال دریافت {url}", url=url)
         try:
-            page = fetch_page(str(arguments["url"]))
+            page = fetch_page(url)
         except Exception as exc:
+            note_progress(context, f"دریافت {url} ناموفق بود", url=url, ok=False)
             return ToolResult(ok=False, content=f"دریافت صفحه ناموفق بود: {exc}")
+        note_progress(context, "صفحه دریافت شد", url=url, ok=True)
         content = f"{page.get('title')}\n{page.get('text')}"
         return ToolResult(ok=True, content=content, data=page)
 
@@ -224,6 +233,11 @@ def register_builtin_tools() -> None:
         UpdatePlanTool(),
     ):
         tool_registry.ensure(tool)
+    from app.channels.tool import ContactChannelTool
+    from app.tools.social import FacebookSearchTool, LinkedInSearchTool
+
+    for extra in (LinkedInSearchTool(), FacebookSearchTool(), ContactChannelTool()):
+        tool_registry.ensure(extra)
 
 
 register_builtin_tools()

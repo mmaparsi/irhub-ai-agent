@@ -28,6 +28,9 @@ async def lifespan(_app: FastAPI):
     configure_litellm()
     register_all()
     seed_if_needed()
+    from app.realtime import start_redis_listener
+
+    start_redis_listener()
     yield
 
 

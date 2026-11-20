@@ -39,7 +39,9 @@ def seed_core(db: Session) -> None:
     from app.tools.base import tool_registry
 
     _seed_admin(db)
+    _seed_demo_users(db)
     _seed_tools(db, tool_registry)
+    _seed_channel_policies(db)
     _seed_agents(db, registry)
     _seed_samples(db)
 
@@ -58,6 +60,54 @@ def _seed_admin(db: Session) -> None:
             is_active=True,
         )
     )
+    db.flush()
+
+
+def _seed_demo_users(db: Session) -> None:
+    rows = (
+        (settings.sales_email, settings.sales_password, settings.sales_name, "sales"),
+        (
+            settings.supplier_email,
+            settings.supplier_password,
+            settings.supplier_name,
+            "supplier_acquisition",
+        ),
+    )
+    for email, password, name, role in rows:
+        normalized = email.strip().lower()
+        if not normalized or db.scalar(select(User).where(User.email == normalized)):
+            continue
+        db.add(
+            User(
+                email=normalized,
+                hashed_password=hash_password(password),
+                full_name=name,
+                role=role,
+                is_active=True,
+            )
+        )
+    db.flush()
+
+
+def _seed_channel_policies(db: Session) -> None:
+    from app.models import ChannelPolicy
+
+    for channel in ("email", "telegram", "whatsapp", "sms"):
+        exists = db.scalar(
+            select(ChannelPolicy).where(
+                ChannelPolicy.channel == channel, ChannelPolicy.agent_id.is_(None)
+            )
+        )
+        if exists is not None:
+            continue
+        db.add(
+            ChannelPolicy(
+                channel=channel,
+                agent_id=None,
+                mode="approval",
+                daily_limit=settings.channel_daily_limit,
+            )
+        )
     db.flush()
 
 
@@ -150,7 +200,7 @@ _PREVIOUS_TOOLS = {
 def _sync_builtin_tools(row: Agent, spec) -> None:
     config = dict(row.config or {})
     version = int(config.get("tools_version") or 1)
-    if version >= 3:
+    if version >= 4:
         return
     current = list(row.allowed_tools or [])
     if version < 2:
@@ -159,8 +209,17 @@ def _sync_builtin_tools(row: Agent, spec) -> None:
             current = list(spec.allowed_tools)
     if "update_plan" not in current:
         current.append("update_plan")
+    extras = {
+        "lead_generation": ["linkedin_search", "facebook_search", "contact_channel"],
+        "sales_negotiation": ["contact_channel"],
+        "research": ["linkedin_search", "facebook_search"],
+        "consulting": ["linkedin_search"],
+    }
+    for name in extras.get(row.slug, []):
+        if name not in current:
+            current.append(name)
     row.allowed_tools = current
-    config["tools_version"] = 3
+    config["tools_version"] = 4
     row.config = config
     row.updated_at = utcnow()
 
@@ -196,6 +255,7 @@ def _seed_samples(db: Session) -> None:
         company_id=steel.id,
         title="تأمین ورق برای خط جدید",
         source="نمایشگاه",
+        party="supplier",
         status="negotiating",
         score=78,
         notes="علاقه‌مند به قرارداد فصلی.",
@@ -204,6 +264,7 @@ def _seed_samples(db: Session) -> None:
         company_id=pack.id,
         title="جعبه‌های صادراتی مواد غذایی",
         source="معرفی",
+        party="customer",
         status="qualified",
         score=64,
         notes="نیاز به نمونه در اندازهٔ صادراتی.",
@@ -212,6 +273,7 @@ def _seed_samples(db: Session) -> None:
         company_id=textile.id,
         title="پارچهٔ فنی برای لباس کار",
         source="وب",
+        party="supplier",
         status="new",
         score=41,
         notes="هنوز تماس اول انجام نشده.",
@@ -227,6 +289,7 @@ def _seed_samples(db: Session) -> None:
                 email="reza@example.com",
                 phone="021-00000000",
                 title="مدیر خرید",
+                party="supplier",
             ),
             Contact(
                 company_id=pack.id,
@@ -235,6 +298,7 @@ def _seed_samples(db: Session) -> None:
                 email="nastaran@example.com",
                 phone="013-00000000",
                 title="کارشناس توسعه محصول",
+                party="customer",
             ),
             Deal(
                 lead_id=lead_steel.id,

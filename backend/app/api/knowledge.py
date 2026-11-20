@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit import write_audit
-from app.auth.deps import get_current_user, require_roles
+from app.auth.deps import get_current_user, require_staff
 from app.database import get_db
 from app.knowledge.embeddings import embed_text
 from app.knowledge.search import search_documents
@@ -43,7 +43,7 @@ def list_documents(
 async def create_document(
     body: KnowledgeIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert")),
+    user: User = Depends(require_staff),
 ) -> KnowledgeOut:
     document = KnowledgeDocument(
         title=body.title.strip(),

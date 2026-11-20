@@ -32,12 +32,12 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=255)
-    role: Literal["admin", "expert", "viewer"] = "expert"
+    role: Literal["admin", "sales", "supplier_acquisition"] = "sales"
 
 
 class UserUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=255)
-    role: Literal["admin", "expert", "viewer"] | None = None
+    role: Literal["admin", "sales", "supplier_acquisition"] | None = None
     is_active: bool | None = None
 
 
@@ -107,6 +107,8 @@ class ConversationOut(BaseModel):
     status: str
     agent_id: str | None
     agent_name: str | None
+    channel: str = "panel"
+    party: str = "customer"
     created_at: datetime
 
 
@@ -192,6 +194,8 @@ class LeadOut(BaseModel):
     company_name: str
     city: str
     industry: str
+    website: str = ""
+    party: str = "customer"
     contacts: list[ContactOut]
     deals: list[DealOut]
     created_at: datetime
@@ -240,5 +244,6 @@ class DashboardOut(BaseModel):
     pending_approvals: int
     leads: int
     documents: int
+    running_tasks: int = 0
     mock_llm: bool
     max_discount_percent: float

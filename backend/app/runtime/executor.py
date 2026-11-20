@@ -55,7 +55,13 @@ async def execute_task(task_id: str, resume: dict | None = None) -> None:
         task.status = "running"
         task.error = ""
         task.updated_at = utcnow()
-        db.commit()
+        emit_event(
+            db,
+            task.id,
+            "status",
+            {"status": "running"},
+            dedupe_key=f"{task.id}:status:running",
+        )
         async with open_checkpointer(dialect) as saver:
             graph = build_agent_graph(saver)
             config = {
@@ -112,7 +118,13 @@ async def execute_task(task_id: str, resume: dict | None = None) -> None:
         else:
             task.status = "completed"
             task.finished_at = utcnow()
-        db.commit()
+        emit_event(
+            db,
+            task.id,
+            "status",
+            {"status": task.status},
+            dedupe_key=f"{task.id}:status:{task.status}",
+        )
     except Exception as exc:
         logger.exception("task %s failed", task_id)
         db.rollback()

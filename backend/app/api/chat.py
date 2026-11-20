@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app.agents.graph import get_compiled_graph, next_seq
 from app.agents.runner import iter_turn
 from app.agents.supervisor import route_task
-from app.auth.deps import require_roles
+from app.auth.deps import require_staff
+from app.auth.rbac import agent_allowed, require_agent, team_user_ids
 from app.database import get_db, open_session
 from app.models import Agent, Conversation, Message, User
 from app.schemas import (
@@ -42,23 +43,32 @@ def _conversation_out(db: Session, conversation: Conversation) -> ConversationOu
         status=conversation.status,
         agent_id=conversation.agent_id,
         agent_name=_agent_name(db, conversation.agent_id),
+        channel=conversation.channel or "panel",
+        party=conversation.party or "customer",
         created_at=conversation.created_at,
     )
 
 
-def _visible(user: User):
+def _owns(db: Session, user: User, conversation: Conversation) -> bool:
+    if user.role == "admin":
+        return True
+    owner = db.get(User, conversation.user_id)
+    return owner is not None and owner.role == user.role
+
+
+def _visible(db: Session, user: User):
     stmt = select(Conversation).order_by(Conversation.created_at.desc())
     if user.role != "admin":
-        stmt = stmt.where(Conversation.user_id == user.id)
+        stmt = stmt.where(Conversation.user_id.in_(team_user_ids(db, user)))
     return stmt
 
 
 @router.get("/conversations", response_model=list[ConversationOut])
 def list_conversations(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert", "viewer")),
+    user: User = Depends(require_staff),
 ) -> list[ConversationOut]:
-    rows = db.scalars(_visible(user).limit(50)).all()
+    rows = db.scalars(_visible(db, user).limit(80)).all()
     return [_conversation_out(db, row) for row in rows]
 
 
@@ -66,13 +76,11 @@ def list_conversations(
 def create_conversation(
     body: ConversationIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert")),
+    user: User = Depends(require_staff),
 ) -> ConversationOut:
     agent_id = body.agent_id
     if agent_id:
-        agent = db.get(Agent, agent_id)
-        if agent is None or not agent.is_active:
-            raise HTTPException(status_code=404, detail="عامل پیدا نشد")
+        require_agent(user, db.get(Agent, agent_id))
     conversation = Conversation(
         user_id=user.id,
         agent_id=agent_id,
@@ -89,13 +97,11 @@ def create_conversation(
 def get_conversation(
     conversation_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert", "viewer")),
+    user: User = Depends(require_staff),
 ) -> ConversationDetail:
     conversation = db.get(Conversation, conversation_id)
-    if conversation is None:
+    if conversation is None or not _owns(db, user, conversation):
         raise HTTPException(status_code=404, detail="گفتگو پیدا نشد")
-    if user.role != "admin" and conversation.user_id != user.id:
-        raise HTTPException(status_code=403, detail="دسترسی مجاز نیست")
     messages = db.scalars(
         select(Message).where(Message.conversation_id == conversation.id).order_by(Message.seq)
     ).all()
@@ -134,13 +140,11 @@ async def post_message(
     conversation_id: str,
     body: MessageIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert")),
+    user: User = Depends(require_staff),
 ) -> StreamingResponse:
     conversation = db.get(Conversation, conversation_id)
-    if conversation is None:
+    if conversation is None or not _owns(db, user, conversation):
         raise HTTPException(status_code=404, detail="گفتگو پیدا نشد")
-    if user.role != "admin" and conversation.user_id != user.id:
-        raise HTTPException(status_code=403, detail="دسترسی مجاز نیست")
     conv_id = conversation.id
     user_id = user.id
     content = body.content.strip()
@@ -157,8 +161,8 @@ async def post_message(
                 yield _sse({"error": "گفتگو پیدا نشد"})
                 return
             agent = _resolve_agent(session, current, content)
-            if agent is None:
-                yield _sse({"error": "عامل فعالی پیدا نشد"})
+            if agent is None or not agent_allowed(user, agent.slug):
+                yield _sse({"error": "عامل فعالی برای نقش شما پیدا نشد"})
                 return
             if current.agent_id is None:
                 current.agent_id = agent.id
@@ -223,12 +227,12 @@ async def post_message(
 async def run_task(
     body: TaskIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert")),
+    user: User = Depends(require_staff),
 ) -> TaskOut:
     slug = route_task(body.task, body.agent_slug)
     agent = db.scalar(select(Agent).where(Agent.slug == slug, Agent.is_active.is_(True)))
-    if agent is None:
-        raise HTTPException(status_code=404, detail="عامل فعالی برای این کار پیدا نشد")
+    if agent is None or not agent_allowed(user, agent.slug):
+        raise HTTPException(status_code=403, detail="این عامل برای نقش شما در دسترس نیست")
     conversation = Conversation(
         user_id=user.id,
         agent_id=agent.id,

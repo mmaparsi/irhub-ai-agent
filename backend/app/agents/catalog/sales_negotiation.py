@@ -17,6 +17,7 @@ SPEC = AgentSpec(
     allowed_tools=(
         "propose_price",
         "send_email",
+        "contact_channel",
         "search_leads",
         "knowledge_search",
         "memory_search",

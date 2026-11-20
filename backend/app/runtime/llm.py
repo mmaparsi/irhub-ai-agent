@@ -5,8 +5,10 @@ from __future__ import annotations
 import contextvars
 from typing import Any
 
-from app.agents.llm import complete_model
+from app.agents.llm import stream_model
 from app.config import settings
+from app.runtime.context import run_context
+from app.runtime.events import emit_event
 
 scripted_llm: contextvars.ContextVar[list[dict] | None] = contextvars.ContextVar(
     "scripted_llm", default=None
@@ -27,13 +29,36 @@ async def complete(
         return script.pop(0)
     if settings.llm_is_mock():
         return _mock(phase, messages, tools or [])
-    return await complete_model(
+    chunks: list[str] = []
+    calls: list[dict[str, Any]] = []
+
+    def notify(kind: str, payload: dict[str, Any]) -> None:
+        _task_emit(kind, {"phase": phase, **payload})
+
+    async for kind, payload in stream_model(
         model=model,
         fast_model=fast_model,
         messages=messages,
         temperature=temperature,
         tools=tools,
-    )
+        notify=notify,
+    ):
+        if kind == "token" and payload:
+            chunks.append(str(payload))
+            _task_emit("token", {"text": str(payload), "phase": phase})
+        elif kind == "tools":
+            calls = list(payload or [])
+    return {"content": "".join(chunks), "tool_calls": calls}
+
+
+def _task_emit(kind: str, payload: dict[str, Any]) -> None:
+    try:
+        ctx = run_context.get()
+    except LookupError:
+        return
+    if ctx.db is None or not ctx.task_id:
+        return
+    emit_event(ctx.db, ctx.task_id, kind, payload)
 
 
 def _mock(phase: str, messages: list[dict], tools: list[dict]) -> dict[str, Any]:

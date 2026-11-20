@@ -15,7 +15,7 @@ export default function UsersPage() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<Role>("expert");
+  const [role, setRole] = useState<Role>("sales");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function UsersPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <PageHeader title="کاربران" description="مدیر می‌تواند کارشناس، بیننده یا مدیر جدید بسازد." />
+      <PageHeader title="کاربران" description="مدیرکل نقش فروش، جذب تأمین‌کننده یا مدیر را تعیین می‌کند." />
       {error ? <ErrorNote>{error}</ErrorNote> : null}
       <Card>
         <form
@@ -65,9 +65,9 @@ export default function UsersPage() {
           </Field>
           <Field label="نقش">
             <select className={inputClass} value={role} onChange={(event) => setRole(event.target.value as Role)}>
-              <option value="expert">کارشناس</option>
-              <option value="viewer">بیننده</option>
-              <option value="admin">مدیر</option>
+              <option value="sales">کارشناس فروش</option>
+              <option value="supplier_acquisition">کارشناس جذب تامین‌کننده</option>
+              <option value="admin">مدیرکل سیستم</option>
             </select>
           </Field>
           <div className="md:col-span-2">
@@ -82,7 +82,29 @@ export default function UsersPage() {
               <p className="font-medium">{item.full_name}</p>
               <p dir="ltr" className="text-left text-xs text-stone-500">{item.email}</p>
             </div>
-            <Badge tone={item.is_active ? "teal" : "stone"}>{roleLabel[item.role] || item.role}</Badge>
+            <div className="flex items-center gap-2">
+              <select
+                className={inputClass}
+                value={item.role}
+                onChange={async (event) => {
+                  setError("");
+                  try {
+                    await api(`/api/users/${item.id}`, {
+                      method: "PATCH",
+                      body: JSON.stringify({ role: event.target.value }),
+                    });
+                    await load();
+                  } catch (err) {
+                    setError(errorText(err));
+                  }
+                }}
+              >
+                <option value="sales">کارشناس فروش</option>
+                <option value="supplier_acquisition">کارشناس جذب تامین‌کننده</option>
+                <option value="admin">مدیرکل سیستم</option>
+              </select>
+              <Badge tone={item.is_active ? "teal" : "stone"}>{roleLabel[item.role] || item.role}</Badge>
+            </div>
           </Card>
         ))}
       </div>

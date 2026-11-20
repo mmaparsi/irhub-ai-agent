@@ -103,6 +103,13 @@ async def actor_node(state: AgentRunState) -> dict:
     step = int(state.get("step") or 0) + 1
     if step > int(state.get("max_steps") or 12):
         return {"step": step, "status": "budget"}
+    emit_event(
+        ctx.db,
+        ctx.task_id,
+        "step_start",
+        {"step": step},
+        dedupe_key=f"{ctx.thread_id}:step-start:{step}",
+    )
     schemas = _schemas(state.get("allowed_tools") or [])
     result = await complete(
         phase="act",
@@ -127,6 +134,13 @@ async def actor_node(state: AgentRunState) -> dict:
             "tools": [c.get("name") for c in message["tool_calls"]],
         },
         dedupe_key=f"{ctx.thread_id}:action:{step}",
+    )
+    emit_event(
+        ctx.db,
+        ctx.task_id,
+        "step_end",
+        {"step": step, "tools": [c.get("name") for c in message["tool_calls"]]},
+        dedupe_key=f"{ctx.thread_id}:step-end:{step}",
     )
     return {
         "messages": list(state.get("messages") or []) + [message],

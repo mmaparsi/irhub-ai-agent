@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 from app.agents.registry import SLUG_RE
 from app.audit import write_audit
 from app.auth.deps import get_current_user, require_roles
+from app.auth.rbac import agent_allowed, party_for_role
 from app.config import settings
 from app.database import get_db
-from app.models import Agent, ApprovalRequest, KnowledgeDocument, Lead, ToolRecord, User
+from app.models import Agent, AgentTask, ApprovalRequest, KnowledgeDocument, Lead, ToolRecord, User
 from app.schemas import AgentCreate, AgentOut, AgentUpdate, DashboardOut, ToolOut
 from app.tools.base import tool_registry
 from app.utils import utcnow
@@ -26,26 +27,38 @@ def _validate_tools(names: list[str]) -> None:
 @router.get("/dashboard", response_model=DashboardOut)
 def dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> DashboardOut:
-    agents = (
-        db.scalar(select(func.count()).select_from(Agent).where(Agent.is_active.is_(True))) or 0
+    agents = sum(
+        1
+        for row in db.scalars(select(Agent).where(Agent.is_active.is_(True))).all()
+        if agent_allowed(user, row.slug)
     )
-    pending = (
-        db.scalar(
-            select(func.count())
-            .select_from(ApprovalRequest)
-            .where(ApprovalRequest.status == "pending")
-        )
-        or 0
-    )
-    leads = db.scalar(select(func.count()).select_from(Lead)) or 0
+    approvals = db.scalars(select(ApprovalRequest).where(ApprovalRequest.status == "pending")).all()
+    from app.auth.rbac import can_decide_approval
+
+    pending = sum(1 for row in approvals if can_decide_approval(db, user, row))
+    lead_stmt = select(Lead)
+    party = party_for_role(user.role)
+    if party:
+        lead_stmt = lead_stmt.where(Lead.party == party)
+    leads = len(db.scalars(lead_stmt).all())
     documents = db.scalar(select(func.count()).select_from(KnowledgeDocument)) or 0
+    task_stmt = select(AgentTask).where(
+        AgentTask.status.in_(("queued", "running", "waiting_approval"))
+    )
+    running = 0
+    from app.auth.rbac import task_visible
+
+    for task in db.scalars(task_stmt).all():
+        if task_visible(db, user, task):
+            running += 1
     return DashboardOut(
         agents=int(agents),
         pending_approvals=int(pending),
         leads=int(leads),
         documents=int(documents),
+        running_tasks=int(running),
         mock_llm=settings.llm_is_mock(),
         max_discount_percent=settings.max_discount_percent,
     )
@@ -76,19 +89,20 @@ def list_tools(
 @router.get("/agents", response_model=list[AgentOut])
 def list_agents(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> list[Agent]:
-    return list(db.scalars(select(Agent).order_by(Agent.name_fa)))
+    rows = list(db.scalars(select(Agent).order_by(Agent.name_fa)))
+    return [row for row in rows if agent_allowed(user, row.slug)]
 
 
 @router.get("/agents/{agent_id}", response_model=AgentOut)
 def get_agent(
     agent_id: str,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ) -> Agent:
     agent = db.get(Agent, agent_id)
-    if agent is None:
+    if agent is None or not agent_allowed(user, agent.slug):
         raise HTTPException(status_code=404, detail="عامل پیدا نشد")
     return agent
 

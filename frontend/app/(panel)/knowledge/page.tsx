@@ -12,7 +12,7 @@ export default function KnowledgePage() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
-  const canUpload = user?.role === "admin" || user?.role === "expert";
+  const canUpload = user?.role === "admin" || user?.role === "sales" || user?.role === "supplier_acquisition";
 
   function load() {
     return api<KnowledgeDoc[]>("/api/knowledge").then(setDocs);

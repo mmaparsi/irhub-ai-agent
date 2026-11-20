@@ -32,13 +32,21 @@ def run_gated_tool(
     if context.db is None:
         return ToolResult(ok=False, content="پایگاه داده برای تأیید در دسترس نیست.")
     db = context.db
+    action_type = getattr(tool, "action_type", "")
+    if tool.name == "contact_channel":
+        from app.channels.tool import apply_channel_policy, channel_action
+
+        handled = apply_channel_policy(arguments, context, call_id=call_id)
+        if handled is not None:
+            return handled
+        action_type = channel_action(str(arguments.get("channel") or ""))
     existing = _find(db, context.task_id, call_id)
     if existing is None:
         payload = {**arguments, "call_id": call_id, "handled_by_graph": True}
         try:
             existing = request_approval(
                 db,
-                action_type=tool.action_type,  # type: ignore[attr-defined]
+                action_type=action_type,
                 payload=payload,
                 user_id=context.user_id,
                 conversation_id=context.conversation_id,
@@ -102,4 +110,14 @@ def _perform(action_type: str, arguments: dict[str, Any]) -> str:
             "پیشنهاد قیمت تأیید شد و در پرونده ماند. "
             f"تخفیف {arguments.get('discount_percent')}٪ از سقف مجاز بیشتر نیست."
         )
+    channel = str(arguments.get("channel") or "").strip().lower()
+    if channel in {"telegram", "whatsapp", "sms", "email"}:
+        from app.channels.delivery import dispatch
+
+        return dispatch(
+            channel,
+            to=str(arguments.get("to") or ""),
+            body=str(arguments.get("body") or ""),
+            subject=str(arguments.get("subject") or ""),
+        ).message
     return "متن پیام تأیید شد. اتصال پیام‌رسان هنوز تنظیم نشده و ارسال خارجی انجام نشد."

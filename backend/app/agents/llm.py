@@ -176,6 +176,7 @@ async def stream_model(
     tools: list[dict[str, Any]] | None = None,
     fast_model: str | None = None,
     fallback_models: list[str] | None = None,
+    notify: Any = None,
 ) -> AsyncIterator[tuple[str, Any]]:
     """Yield ('token', str) pieces, then ('tools', list) if the model called tools.
 
@@ -208,6 +209,11 @@ async def stream_model(
                     yield event
                 if candidate != model:
                     logger.info("llm fallback succeeded model=%s", candidate)
+                    if notify:
+                        notify(
+                            "model_switch",
+                            {"from": model, "to": candidate, "reason": last_reason},
+                        )
                 return
             except Exception as exc:
                 reason = classify_llm_error(exc)
@@ -227,6 +233,11 @@ async def stream_model(
                 if reason == "unavailable" or reason == "region":
                     break
                 if _retryable(reason) and attempt + 1 < attempts:
+                    if notify:
+                        notify(
+                            "retry",
+                            {"model": candidate, "attempt": attempt + 1, "reason": reason},
+                        )
                     await asyncio.sleep(settings.llm_retry_base_seconds * (2**attempt))
                     continue
                 break

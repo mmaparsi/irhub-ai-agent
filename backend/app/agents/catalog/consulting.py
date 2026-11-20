@@ -16,6 +16,7 @@ SPEC = AgentSpec(
     allowed_tools=(
         "web_search",
         "web_fetch",
+        "linkedin_search",
         "knowledge_search",
         "python_exec",
         "memory_search",

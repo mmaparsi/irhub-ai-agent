@@ -82,6 +82,7 @@ class CreateLeadTool(Tool):
             "phone": {"type": "string"},
             "notes": {"type": "string"},
             "source": {"type": "string"},
+            "party": {"type": "string", "enum": ["customer", "supplier"]},
         },
         "required": ["company_name", "title"],
         "additionalProperties": False,
@@ -117,11 +118,15 @@ class CreateLeadTool(Tool):
                 .join(Contact, Contact.lead_id == Lead.id)
                 .where(Lead.company_id == company.id, func.lower(Contact.email) == email)
             )
+        party = str(arguments.get("party") or "").strip()
+        if party not in {"customer", "supplier"}:
+            party = "supplier" if context.agent_slug in {"research", "consulting"} else "customer"
         if lead is None:
             lead = Lead(
                 company_id=company.id,
                 title=str(arguments["title"]).strip(),
                 source=str(arguments.get("source") or "agent"),
+                party=party,
                 status="new",
                 score=0,
                 notes=str(arguments.get("notes") or ""),
@@ -148,6 +153,7 @@ class CreateLeadTool(Tool):
                         company_id=company.id,
                         lead_id=lead.id,
                         name=str(arguments.get("contact_name") or "نامشخص"),
+                        party=lead.party,
                         email=email,
                         phone=str(arguments.get("phone") or ""),
                         title="",
@@ -155,6 +161,22 @@ class CreateLeadTool(Tool):
                 )
         db.flush()
         verb = "ساخته شد" if created else "به‌روز شد"
+        from app.runtime.events import publish_activity
+
+        publish_activity(
+            db,
+            kind="lead",
+            payload={
+                "lead_id": lead.id,
+                "title": lead.title,
+                "source": lead.source,
+                "party": lead.party,
+                "created": created,
+            },
+            user_id=context.user_id,
+            role="supplier_acquisition" if lead.party == "supplier" else "sales",
+            task_id=context.task_id,
+        )
         return ToolResult(
             ok=True,
             content=f"سرنخ {verb}: {company.name} — {lead.title}",

@@ -30,24 +30,13 @@ def test_health_is_public(client) -> None:
     assert response.json()["mock_llm"] is True
 
 
-def test_viewer_cannot_manage_agents_or_users(client) -> None:
+def test_supplier_cannot_manage_agents_or_users(client) -> None:
     admin = auth_header(client)
-    created = client.post(
-        "/api/users",
-        headers=admin,
-        json={
-            "email": "viewer@example.com",
-            "password": "viewer123",
-            "full_name": "بیننده",
-            "role": "viewer",
-        },
-    )
-    assert created.status_code == 201
-    viewer = auth_header(client, "viewer@example.com", "viewer123")
-    assert client.get("/api/users", headers=viewer).status_code == 403
+    supplier = auth_header(client, "supplier@example.com", "supplier12345")
+    assert client.get("/api/users", headers=supplier).status_code == 403
     denied = client.post(
         "/api/agents",
-        headers=viewer,
+        headers=supplier,
         json={
             "slug": "quality_review",
             "name": "Quality",
@@ -74,11 +63,14 @@ def test_viewer_cannot_manage_agents_or_users(client) -> None:
         },
     )
     assert allowed.status_code == 201
-    listing = client.get("/api/agents", headers=viewer)
+    listing = client.get("/api/agents", headers=supplier)
     assert listing.status_code == 200
-    assert any(item["slug"] == "quality_review" for item in listing.json())
-    seeded = {item["slug"] for item in listing.json()}
-    assert {"research", "lead_generation", "sales_negotiation", "consulting"} <= seeded
+    slugs = {item["slug"] for item in listing.json()}
+    assert {"research", "consulting"} <= slugs
+    assert "lead_generation" not in slugs
+    assert "quality_review" not in slugs
+    admin_slugs = {item["slug"] for item in client.get("/api/agents", headers=admin).json()}
+    assert "quality_review" in admin_slugs
 
 
 def test_chat_streams_mock_reply_and_task_uses_graph(client) -> None:

@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     admin_email: str = "admin@example.com"
     admin_password: str = "admin123"
     admin_name: str = "مدیر سیستم"
+    sales_email: str = "sales@example.com"
+    sales_password: str = "sales12345"
+    sales_name: str = "کارشناس فروش"
+    supplier_email: str = "supplier@example.com"
+    supplier_password: str = "supplier12345"
+    supplier_name: str = "کارشناس جذب تامین‌کننده"
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     # auto: mock when no provider key is set. true/false force the mode.
     mock_llm: str = "auto"
@@ -59,6 +65,22 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""
     smtp_tls: bool = True
+    imap_host: str = ""
+    imap_port: int = 993
+    imap_user: str = ""
+    imap_password: str = ""
+    imap_ssl: bool = True
+    telegram_bot_token: str = ""
+    whatsapp_token: str = ""
+    whatsapp_phone_id: str = ""
+    whatsapp_webhook_token: str = ""
+    kavenegar_api_key: str = ""
+    kavenegar_sender: str = ""
+    channel_daily_limit: int = 20
+    social_playwright_enabled: bool = False
+    social_session_cookies: str = ""
+    social_playwright_min_seconds: float = 30
+    social_playwright_hourly_limit: int = 5
     langfuse_enabled: bool = False
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""

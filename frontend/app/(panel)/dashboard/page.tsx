@@ -12,9 +12,14 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api<Dashboard>("/api/dashboard")
-      .then(setData)
-      .catch((err) => setError(errorText(err)));
+    function load() {
+      api<Dashboard>("/api/dashboard")
+        .then(setData)
+        .catch((err) => setError(errorText(err)));
+    }
+    load();
+    window.addEventListener("irhub-live", load);
+    return () => window.removeEventListener("irhub-live", load);
   }, []);
 
   const cards = data
@@ -23,6 +28,7 @@ export default function DashboardPage() {
         { label: "تأییدهای باز", value: data.pending_approvals, href: "/approvals" },
         { label: "سرنخ‌ها", value: data.leads, href: "/leads" },
         { label: "سندهای دانش", value: data.documents, href: "/knowledge" },
+        { label: "وظیفه‌های باز", value: data.running_tasks || 0, href: "/tasks" },
       ]
     : [];
 

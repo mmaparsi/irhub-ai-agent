@@ -8,7 +8,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth.deps import require_roles
+from app.auth.deps import require_staff
+from app.auth.rbac import require_agent, task_visible
 from app.config import settings
 from app.database import get_db
 from app.models import Agent, AgentTask, Artifact, TaskEvent, User
@@ -67,19 +68,18 @@ async def enqueue_or_spawn(task_id: str, resume: dict | None = None) -> None:
 @router.get("", response_model=list[AgentTaskOut])
 def list_tasks(
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert", "viewer")),
+    user: User = Depends(require_staff),
 ) -> list[AgentTaskOut]:
-    stmt = select(AgentTask).order_by(AgentTask.created_at.desc()).limit(50)
-    if user.role != "admin":
-        stmt = stmt.where(AgentTask.user_id == user.id)
-    return [_out(db, row) for row in db.scalars(stmt).all()]
+    stmt = select(AgentTask).order_by(AgentTask.created_at.desc()).limit(80)
+    rows = [row for row in db.scalars(stmt).all() if task_visible(db, user, row)]
+    return [_out(db, row) for row in rows]
 
 
 @router.post("", response_model=AgentTaskOut, status_code=201)
 async def create_task(
     body: AgentTaskIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert")),
+    user: User = Depends(require_staff),
 ) -> AgentTaskOut:
     agent = None
     if body.agent_id:
@@ -88,8 +88,7 @@ async def create_task(
         agent = db.scalar(
             select(Agent).where(Agent.slug == body.agent_slug, Agent.is_active.is_(True))
         )
-    if agent is None or not agent.is_active:
-        raise HTTPException(status_code=404, detail="عامل پیدا نشد")
+    agent = require_agent(user, agent)
     task = AgentTask(
         user_id=user.id,
         agent_id=agent.id,
@@ -111,7 +110,7 @@ async def create_task(
 def get_task(
     task_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert", "viewer")),
+    user: User = Depends(require_staff),
 ) -> AgentTaskOut:
     task = _visible(db, user, task_id)
     return _out(db, task)
@@ -121,7 +120,7 @@ def get_task(
 def list_events(
     task_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert", "viewer")),
+    user: User = Depends(require_staff),
 ):
     _visible(db, user, task_id)
     rows = db.scalars(
@@ -143,7 +142,7 @@ def list_events(
 async def stream_events(
     task_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert", "viewer")),
+    user: User = Depends(require_staff),
 ):
     _visible(db, user, task_id)
 
@@ -184,7 +183,7 @@ async def stream_events(
 def stop_task(
     task_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert")),
+    user: User = Depends(require_staff),
 ) -> AgentTaskOut:
     task = _visible(db, user, task_id)
     if task.user_id != user.id and user.role != "admin":
@@ -205,7 +204,7 @@ def stop_task(
 def list_artifacts(
     task_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert", "viewer")),
+    user: User = Depends(require_staff),
 ):
     _visible(db, user, task_id)
     rows = db.scalars(select(Artifact).where(Artifact.task_id == task_id)).all()
@@ -217,10 +216,8 @@ def list_artifacts(
 
 def _visible(db: Session, user: User, task_id: str) -> AgentTask:
     task = db.get(AgentTask, task_id)
-    if task is None:
+    if task is None or not task_visible(db, user, task):
         raise HTTPException(status_code=404, detail="وظیفه پیدا نشد")
-    if user.role != "admin" and task.user_id != user.id:
-        raise HTTPException(status_code=403, detail="دسترسی مجاز نیست")
     return task
 
 
@@ -231,7 +228,7 @@ artifacts = APIRouter(prefix="/artifacts", tags=["artifacts"])
 def download_artifact(
     artifact_id: str,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert", "viewer")),
+    user: User = Depends(require_staff),
 ):
     row = db.get(Artifact, artifact_id)
     if row is None:

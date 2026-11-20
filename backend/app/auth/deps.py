@@ -30,6 +30,12 @@ def get_current_user(
     return user
 
 
+def require_staff(user: User = Depends(get_current_user)) -> User:
+    if user.role not in {"admin", "sales", "supplier_acquisition"}:
+        raise HTTPException(status_code=403, detail="دسترسی مجاز نیست")
+    return user
+
+
 def require_roles(*roles: str) -> Callable:
     def _dep(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles:

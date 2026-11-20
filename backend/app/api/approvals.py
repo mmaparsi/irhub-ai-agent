@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.approvals.service import request_approval
 from app.audit import write_audit
-from app.auth.deps import get_current_user, require_roles
+from app.auth.deps import require_staff
+from app.auth.rbac import can_decide_approval
 from app.database import get_db
 from app.models import Agent, ApprovalRequest, User
 from app.rules.business import BusinessRuleError
@@ -44,19 +45,20 @@ def _out(db: Session, row: ApprovalRequest) -> ApprovalOut:
 def list_approvals(
     status: str | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(require_staff),
 ) -> list[ApprovalOut]:
     stmt = select(ApprovalRequest).order_by(ApprovalRequest.created_at.desc())
     if status:
         stmt = stmt.where(ApprovalRequest.status == status)
-    return [_out(db, row) for row in db.scalars(stmt.limit(100)).all()]
+    rows = [row for row in db.scalars(stmt.limit(200)).all() if can_decide_approval(db, user, row)]
+    return [_out(db, row) for row in rows]
 
 
 @router.post("", response_model=ApprovalOut, status_code=201)
 def create_approval(
     body: ApprovalIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert")),
+    user: User = Depends(require_staff),
 ) -> ApprovalOut:
     try:
         row = request_approval(
@@ -81,11 +83,13 @@ async def decide(
     approval_id: str,
     body: DecisionIn,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("admin", "expert")),
+    user: User = Depends(require_staff),
 ) -> ApprovalOut:
     row = db.get(ApprovalRequest, approval_id)
     if row is None:
         raise HTTPException(status_code=404, detail="درخواست پیدا نشد")
+    if not can_decide_approval(db, user, row):
+        raise HTTPException(status_code=403, detail="دسترسی مجاز نیست")
     if row.status != "pending":
         raise HTTPException(status_code=409, detail="این درخواست قبلاً تعیین تکلیف شده است")
     row.status = body.decision

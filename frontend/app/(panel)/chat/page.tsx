@@ -3,6 +3,7 @@
 import { errorText, useAuth } from "@/components/AuthProvider";
 import { Button, ErrorNote, inputClass } from "@/components/ui";
 import { api, streamMessage } from "@/lib/api";
+import { channelLabel } from "@/lib/labels";
 import type { Agent, ChatMessage, Conversation } from "@/lib/types";
 import { useEffect, useRef, useState } from "react";
 
@@ -19,7 +20,7 @@ export default function ChatPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
-  const canSend = user?.role === "admin" || user?.role === "expert";
+  const canSend = user?.role === "admin" || user?.role === "sales" || user?.role === "supplier_acquisition";
 
   useEffect(() => {
     api<Agent[]>("/api/agents").then((rows) => setAgents(rows.filter((item) => item.is_active))).catch((err) => setError(errorText(err)));
@@ -125,7 +126,9 @@ export default function ChatPage() {
               onClick={() => openConversation(item.id).catch((err) => setError(errorText(err)))}
             >
               <span className="block truncate">{item.title}</span>
-              <span className="block truncate text-xs opacity-70">{item.agent_name || "سرپرست"}</span>
+              <span className="block truncate text-xs opacity-70">
+                {channelLabel[item.channel || "panel"] || item.channel} · {item.agent_name || "سرپرست"}
+              </span>
             </button>
           ))}
         </div>

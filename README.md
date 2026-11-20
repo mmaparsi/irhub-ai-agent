@@ -111,7 +111,9 @@ cd ../frontend && npm ci && npm run lint && npm run build
 
 ## Autonomous runs
 
-Each specialist is a LangGraph loop: plan, call tools, observe, and repeat until the goal is done or `max_steps` is reached. Tasks run in the arq worker. Checkpoints are stored in Postgres, so a restart or an approval pause can resume the same thread. Progress is stored as task events and streamed to the task page. Web search uses the bundled SearXNG service and honors `HTTPS_PROXY`. If Docker Hub is blocked, build with `DOCKER_BUILDKIT=0` and, when needed, `--build-arg HTTPS_PROXY=http://host.docker.internal:10809`.
+Each specialist is a LangGraph loop: plan, call tools, observe, and repeat until the goal is done or `max_steps` is reached. Tasks run in the arq worker. Checkpoints are stored in Postgres, so a restart or an approval pause can resume the same thread. The task page follows `/api/ws` (JWT in `?token=` or the `bearer.<jwt>` subprotocol) and replays missed events with `after_seq`. The worker fans events out through Redis. Model tokens, tool progress, retries, and fallback switches are on that timeline. Web search uses the bundled SearXNG service and honors `HTTPS_PROXY`. If Docker Hub is blocked, build with `DOCKER_BUILDKIT=0` and, when needed, `--build-arg HTTPS_PROXY=http://host.docker.internal:10809`.
+
+`linkedin_search` and `facebook_search` use public `site:` queries. `SOCIAL_PLAYWRIGHT_ENABLED` is false by default. Turning it on reads the owner's cookies from `SOCIAL_SESSION_COOKIES` and can violate LinkedIn or Meta terms and get that account banned. Email, Telegram, WhatsApp, and Kavenegar SMS stay "not configured" until their env vars are set. Channel policy defaults to approval, with a daily cap and opt-out. The API never returns those secrets.
 
 ## How to add an agent
 
@@ -153,6 +155,8 @@ Swap a provider without changing agents, for example `set_search_provider(my_pro
 
 | Role | Can |
 | --- | --- |
-| admin | Everything, including agents and users |
-| expert | Chat, upload knowledge, create and decide approvals |
-| viewer | Read the panel |
+| admin | Everything, including users, agents, channel policy, and all records |
+| sales | Sales and lead-generation agents, customer leads, team conversations, approvals on their tasks |
+| supplier_acquisition | Research and consulting agents, supplier leads, their conversations |
+
+Demo logins: `admin@example.com` / `admin123`, `sales@example.com` / `sales12345`, `supplier@example.com` / `supplier12345`.
