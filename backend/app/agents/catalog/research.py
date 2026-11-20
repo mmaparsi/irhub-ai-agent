@@ -23,6 +23,7 @@ SPEC = AgentSpec(
         "memory_search",
         "python_exec",
         "write_report",
+        "update_plan",
     ),
     model_strong=_strong,
     model_fast=_fast,

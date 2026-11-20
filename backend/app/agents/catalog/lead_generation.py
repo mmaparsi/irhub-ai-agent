@@ -26,6 +26,7 @@ SPEC = AgentSpec(
         "send_email",
         "memory_save",
         "memory_search",
+        "update_plan",
     ),
     model_strong=_strong,
     model_fast=_fast,

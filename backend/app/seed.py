@@ -149,13 +149,18 @@ _PREVIOUS_TOOLS = {
 
 def _sync_builtin_tools(row: Agent, spec) -> None:
     config = dict(row.config or {})
-    if int(config.get("tools_version") or 1) >= 2:
+    version = int(config.get("tools_version") or 1)
+    if version >= 3:
         return
     current = list(row.allowed_tools or [])
-    previous = _PREVIOUS_TOOLS.get(row.slug)
-    if previous is not None and current == previous:
-        row.allowed_tools = list(spec.allowed_tools)
-    config["tools_version"] = 2
+    if version < 2:
+        previous = _PREVIOUS_TOOLS.get(row.slug)
+        if previous is not None and current == previous:
+            current = list(spec.allowed_tools)
+    if "update_plan" not in current:
+        current.append("update_plan")
+    row.allowed_tools = current
+    config["tools_version"] = 3
     row.config = config
     row.updated_at = utcnow()
 

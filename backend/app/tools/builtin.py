@@ -199,6 +199,7 @@ def register_builtin_tools() -> None:
         PythonExecTool,
         SearchLeadsTool,
         UpdateLeadTool,
+        UpdatePlanTool,
         WriteReportTool,
     )
 
@@ -220,6 +221,7 @@ def register_builtin_tools() -> None:
         PythonExecTool(),
         BrowserTool(),
         DelegateTool(),
+        UpdatePlanTool(),
     ):
         tool_registry.ensure(tool)
 

@@ -7,15 +7,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-import app.agents.catalog  # noqa: F401
-import app.tools.builtin  # noqa: F401
 from app.agents.llm import configure_litellm
 from app.api.router import api
+from app.bootstrap import register_all
 from app.config import settings
 from app.database import get_db
 from app.logging_config import configure_logging
 from app.observability import configure_observability
 from app.seed import seed_if_needed
+
+register_all()
 
 
 @asynccontextmanager
@@ -25,9 +26,7 @@ async def lifespan(_app: FastAPI):
         raise RuntimeError("JWT_SECRET must be changed when ENVIRONMENT=production")
     configure_observability()
     configure_litellm()
-    import app.agents.catalog  # noqa: F401
-    import app.tools.builtin  # noqa: F401
-
+    register_all()
     seed_if_needed()
     yield
 

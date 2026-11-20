@@ -49,6 +49,22 @@ def save_artifact(context: ToolContext, filename: str, data: bytes, media_type: 
     return row
 
 
+class UpdatePlanTool(Tool):
+    name = "update_plan"
+    description = "ثبت برنامهٔ جاری. اثر خارجی ندارد و فقط متن برنامه را ذخیره می‌کند."
+    provider = "local"
+    input_schema = {
+        "type": "object",
+        "properties": {"plan": {"type": "string"}},
+        "required": ["plan"],
+        "additionalProperties": False,
+    }
+
+    def execute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
+        plan = str(arguments.get("plan") or "").strip()
+        return ToolResult(ok=True, content=f"برنامه ثبت شد.\n{plan[:2000]}")
+
+
 class CreateLeadTool(Tool):
     name = "create_lead"
     description = "ثبت سرنخ در CRM داخلی. اگر شرکت و ایمیل تکراری باشد، همان رکورد به‌روز می‌شود."

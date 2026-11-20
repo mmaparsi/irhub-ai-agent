@@ -172,10 +172,11 @@ async def tools_node(state: AgentRunState) -> dict:
                 "role": "tool",
                 "tool_call_id": call.get("id"),
                 "name": call.get("name"),
-                "content": result.content,
+                "content": clean_tool_text(result.content),
             }
         )
-    return {"messages": list(state.get("messages") or []) + outputs}
+    messages = trim_tool_history(list(state.get("messages") or []) + outputs)
+    return {"messages": messages}
 
 
 async def report_node(state: AgentRunState) -> dict:
@@ -256,6 +257,44 @@ async def _run_tool(call: dict, allowed: set[str], ctx: RunContext) -> ToolResul
             raise
         logger.exception("tool %s failed", name)
         return ToolResult(ok=False, content=f"اجرای {name} ناموفق بود: {exc}")
+
+
+_TOOL_TEXT_LIMIT = 6000
+_TOOL_HISTORY_BUDGET = 24000
+
+
+def clean_tool_text(text: str, limit: int = _TOOL_TEXT_LIMIT) -> str:
+    """Drop control and surrogate characters, then cap the tool message."""
+    kept: list[str] = []
+    for char in text or "":
+        code = ord(char)
+        if char in "\n\r\t":
+            kept.append(char)
+            continue
+        if code < 32 or 0xD800 <= code <= 0xDFFF:
+            continue
+        kept.append(char)
+    cleaned = "".join(kept)
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[:limit] + "\n[truncated]"
+
+
+def trim_tool_history(messages: list[dict], budget: int = _TOOL_HISTORY_BUDGET) -> list[dict]:
+    """Shrink the oldest tool outputs once their combined size exceeds the budget."""
+    updated = [dict(item) for item in messages]
+    indexes = [index for index, item in enumerate(updated) if item.get("role") == "tool"]
+    total = sum(len(str(updated[index].get("content") or "")) for index in indexes)
+    for index in indexes:
+        if total <= budget:
+            break
+        content = str(updated[index].get("content") or "")
+        if len(content) <= 400:
+            continue
+        shortened = content[:400] + "\n[truncated]"
+        total -= len(content) - len(shortened)
+        updated[index]["content"] = shortened
+    return updated
 
 
 def _schemas(names: list[str]) -> list[dict]:

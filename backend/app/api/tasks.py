@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_roles
+from app.config import settings
 from app.database import get_db
 from app.models import Agent, AgentTask, Artifact, TaskEvent, User
 from app.runtime.executor import execute_task
@@ -48,6 +49,11 @@ def spawn_task(task_id: str, resume: dict | None = None) -> None:
 
 
 async def enqueue_or_spawn(task_id: str, resume: dict | None = None) -> None:
+    # Tests share one SQLite database. A daemon thread races with the next test
+    # and locks or drops that database. Run inline only in the test environment.
+    if settings.environment == "test":
+        await execute_task(task_id, resume)
+        return
     if resume is None:
         queued = await enqueue("run_agent_task", task_id)
     else:

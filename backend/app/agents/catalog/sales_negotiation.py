@@ -21,6 +21,7 @@ SPEC = AgentSpec(
         "knowledge_search",
         "memory_search",
         "write_report",
+        "update_plan",
     ),
     model_strong=_strong,
     model_fast=_fast,
