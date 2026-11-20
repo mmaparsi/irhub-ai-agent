@@ -1,0 +1,213 @@
+x-backend-build: &backend-build
+  context: ./backend
+  args:
+    HTTP_PROXY: ${HTTP_PROXY:-}
+    HTTPS_PROXY: ${HTTPS_PROXY:-}
+    http_proxy: ${http_proxy:-${HTTP_PROXY:-}}
+    https_proxy: ${https_proxy:-${HTTPS_PROXY:-}}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: irhub
+      POSTGRES_PASSWORD: irhub
+      POSTGRES_DB: irhub
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U irhub -d irhub"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  searxng:
+    image: searxng/searxng:latest
+    entrypoint: ["/bin/sh", "/opt/irhub/entrypoint.sh"]
+    ports:
+      - "8088:8080"
+    volumes:
+      - ./infra/searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ./infra/searxng/entrypoint.sh:/opt/irhub/entrypoint.sh:ro
+    environment:
+      SEARXNG_BASE_URL: http://localhost:8088/
+      SEARXNG_PROXY: ${SEARXNG_PROXY:-${HTTPS_PROXY:-}}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: *backend-build
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://irhub:irhub@postgres:5432/irhub
+      REDIS_URL: redis://redis:6379/0
+      SEARXNG_URL: http://searxng:8080
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      ADMIN_NAME: ${ADMIN_NAME:-مدیر سیستم}
+      SALES_EMAIL: ${SALES_EMAIL:-sales@example.com}
+      SALES_PASSWORD: ${SALES_PASSWORD:-sales12345}
+      SALES_NAME: ${SALES_NAME:-کارشناس فروش}
+      SUPPLIER_EMAIL: ${SUPPLIER_EMAIL:-supplier@example.com}
+      SUPPLIER_PASSWORD: ${SUPPLIER_PASSWORD:-supplier12345}
+      SUPPLIER_NAME: ${SUPPLIER_NAME:-کارشناس جذب تامین‌کننده}
+      MOCK_LLM: ${MOCK_LLM:-auto}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GEMINI_API_BASE: ${GEMINI_API_BASE:-}
+      LLM_API_BASE: ${LLM_API_BASE:-}
+      # Empty lets the API choose Gemini, Anthropic, or OpenAI from the key.
+      MODEL_STRONG_DEFAULT: ${MODEL_STRONG_DEFAULT:-}
+      MODEL_FAST_DEFAULT: ${MODEL_FAST_DEFAULT:-}
+      MODEL_FALLBACKS: ${MODEL_FALLBACKS:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1}
+      http_proxy: ${HTTP_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      no_proxy: ${NO_PROXY:-postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+      MAX_DISCOUNT_PERCENT: ${MAX_DISCOUNT_PERCENT:-15}
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}"
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      IMAP_SSL: ${IMAP_SSL:-true}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      WHATSAPP_WEBHOOK_TOKEN: ${WHATSAPP_WEBHOOK_TOKEN:-}
+      KAVENEGAR_API_KEY: ${KAVENEGAR_API_KEY:-}
+      KAVENEGAR_SENDER: ${KAVENEGAR_SENDER:-}
+      CHANNEL_DAILY_LIMIT: ${CHANNEL_DAILY_LIMIT:-20}
+      SOCIAL_PLAYWRIGHT_ENABLED: ${SOCIAL_PLAYWRIGHT_ENABLED:-false}
+      SOCIAL_SESSION_COOKIES: ${SOCIAL_SESSION_COOKIES:-}
+      SOCIAL_PLAYWRIGHT_MIN_SECONDS: ${SOCIAL_PLAYWRIGHT_MIN_SECONDS:-30}
+      SOCIAL_PLAYWRIGHT_HOURLY_LIMIT: ${SOCIAL_PLAYWRIGHT_HOURLY_LIMIT:-5}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - artifacts:/app/data/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 25s
+
+  worker:
+    build: *backend-build
+    command: arq app.worker.main.WorkerSettings
+    environment:
+      RUN_MIGRATIONS: "0"
+      DATABASE_URL: postgresql+psycopg://irhub:irhub@postgres:5432/irhub
+      REDIS_URL: redis://redis:6379/0
+      SEARXNG_URL: http://searxng:8080
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      MOCK_LLM: ${MOCK_LLM:-auto}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      GEMINI_API_BASE: ${GEMINI_API_BASE:-}
+      LLM_API_BASE: ${LLM_API_BASE:-}
+      MODEL_STRONG_DEFAULT: ${MODEL_STRONG_DEFAULT:-}
+      MODEL_FAST_DEFAULT: ${MODEL_FAST_DEFAULT:-}
+      MODEL_FALLBACKS: ${MODEL_FALLBACKS:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1}
+      http_proxy: ${HTTP_PROXY:-}
+      https_proxy: ${HTTPS_PROXY:-}
+      no_proxy: ${NO_PROXY:-postgres,redis,searxng,backend,frontend,worker,localhost,127.0.0.1}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_TLS: ${SMTP_TLS:-true}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      KAVENEGAR_API_KEY: ${KAVENEGAR_API_KEY:-}
+      KAVENEGAR_SENDER: ${KAVENEGAR_SENDER:-}
+      SOCIAL_PLAYWRIGHT_ENABLED: ${SOCIAL_PLAYWRIGHT_ENABLED:-false}
+      SOCIAL_SESSION_COOKIES: ${SOCIAL_SESSION_COOKIES:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - artifacts:/app/data/artifacts
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    environment:
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  artifacts:

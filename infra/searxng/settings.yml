@@ -1,0 +1,15 @@
+use_default_settings: true
+
+general:
+  instance_name: irhub
+
+server:
+  secret_key: "irhub-dev-secret"
+  limiter: false
+  image_proxy: false
+
+search:
+  safe_search: 0
+  formats:
+    - html
+    - json
