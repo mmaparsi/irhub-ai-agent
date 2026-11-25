@@ -76,6 +76,8 @@ async def execute_task(task_id: str, resume: dict | None = None) -> None:
                 agent_slug=agent.slug,
                 thread_id=task.thread_id,
                 saver=saver,
+                depth=int(task.depth or 0),
+                budget=int(task.max_steps or 6),
             )
             token = run_context.set(ctx)
             try:

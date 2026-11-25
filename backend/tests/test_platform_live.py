@@ -22,7 +22,11 @@ def test_roles_split_leads_and_agents(client) -> None:
     hidden = client.get(f"/api/leads/{sales_leads.json()[0]['id']}", headers=supplier)
     assert hidden.status_code == 404
     agents = client.get("/api/agents", headers=sales).json()
-    assert {item["slug"] for item in agents} == {"lead_generation", "sales_negotiation"}
+    assert {item["slug"] for item in agents} == {
+        "lead_generation",
+        "sales_negotiation",
+        "supervisor",
+    }
     research = next(
         item["id"]
         for item in client.get("/api/agents", headers=auth_header(client)).json()

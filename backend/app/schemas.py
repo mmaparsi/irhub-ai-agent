@@ -223,6 +223,13 @@ class AgentTaskIn(BaseModel):
     max_steps: int = Field(default=12, ge=1, le=30)
 
 
+class AgentTaskChild(BaseModel):
+    id: str
+    goal: str
+    status: str
+    agent_name: str | None = None
+
+
 class AgentTaskOut(BaseModel):
     id: str
     goal: str
@@ -234,6 +241,8 @@ class AgentTaskOut(BaseModel):
     error: str
     agent_id: str | None
     agent_name: str | None
+    parent_task_id: str | None = None
+    children: list[AgentTaskChild] = []
     created_at: datetime
     updated_at: datetime
     finished_at: datetime | None

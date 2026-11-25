@@ -16,6 +16,7 @@ class RunContext:
     thread_id: str
     saver: object
     depth: int = 0
+    budget: int = 6
 
 
 run_context: contextvars.ContextVar[RunContext] = contextvars.ContextVar("run_context")

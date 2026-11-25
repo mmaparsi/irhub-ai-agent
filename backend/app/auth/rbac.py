@@ -13,8 +13,9 @@ SALES = "sales"
 SUPPLIER = "supplier_acquisition"
 STAFF = frozenset({ADMIN, SALES, SUPPLIER})
 
-SALES_AGENTS = frozenset({"lead_generation", "sales_negotiation"})
-SUPPLIER_AGENTS = frozenset({"research", "consulting"})
+SALES_AGENTS = frozenset({"lead_generation", "sales_negotiation", "supervisor"})
+SUPPLIER_AGENTS = frozenset({"research", "consulting", "supervisor"})
+SPECIALISTS = frozenset({"research", "lead_generation", "sales_negotiation", "consulting"})
 
 
 def agent_slugs_for(role: str) -> frozenset[str] | None:

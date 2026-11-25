@@ -510,20 +510,39 @@ class DelegateTool(Tool):
         "properties": {
             "agent_slug": {"type": "string"},
             "goal": {"type": "string"},
+            "jobs": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "agent_slug": {"type": "string"},
+                        "goal": {"type": "string"},
+                    },
+                    "required": ["agent_slug", "goal"],
+                },
+            },
         },
-        "required": ["agent_slug", "goal"],
         "additionalProperties": False,
     }
 
     async def aexecute(self, arguments: dict[str, Any], context: ToolContext) -> ToolResult:
-        from app.runtime.delegate import run_delegated
+        from langgraph.errors import GraphInterrupt
 
+        from app.runtime.context import run_context
+        from app.runtime.supervisor import delegate_jobs
+
+        jobs = arguments.get("jobs")
+        if not jobs:
+            jobs = [
+                {
+                    "agent_slug": arguments.get("agent_slug"),
+                    "goal": arguments.get("goal"),
+                }
+            ]
         try:
-            report = await run_delegated(
-                agent_slug=str(arguments["agent_slug"]),
-                goal=str(arguments["goal"]),
-                context=context,
-            )
+            report = await delegate_jobs(run_context.get(), list(jobs))
+        except GraphInterrupt:
+            raise
         except Exception as exc:
             logger.exception("delegate failed")
             return ToolResult(ok=False, content=f"واگذاری ناموفق بود: {exc}")

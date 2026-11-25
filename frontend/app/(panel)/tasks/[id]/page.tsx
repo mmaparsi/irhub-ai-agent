@@ -5,6 +5,7 @@ import { Badge, Button, Card, Empty, ErrorNote, PageHeader } from "@/components/
 import { TOKEN_KEY, api, apiBase } from "@/lib/api";
 import { taskStatus } from "@/lib/labels";
 import { live, type LiveMessage } from "@/lib/live";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -18,6 +19,7 @@ type TaskDetail = {
   max_steps: number;
   error: string;
   agent_name: string | null;
+  children?: { id: string; goal: string; status: string; agent_name: string | null }[];
 };
 
 type TaskEvent = {
@@ -45,6 +47,11 @@ const kindLabel: Record<string, string> = {
   retry: "تلاش دوباره",
   model_switch: "تعویض مدل",
   lead: "سرنخ",
+  "delegate.start": "سپردن",
+  "delegate.end": "بازگشت متخصص",
+  "child.task": "زیروظیفه",
+  "memory.saved": "حافظه",
+  "memory.recalled": "یادآوری",
 };
 
 export default function TaskDetailPage() {
@@ -137,6 +144,21 @@ export default function TaskDetailPage() {
           </div>
           {task.plan ? <p className="mt-3 whitespace-pre-wrap text-sm leading-7">{task.plan}</p> : null}
           {task.error ? <p className="mt-3 text-sm text-rose-800">{task.error}</p> : null}
+        </Card>
+      ) : null}
+      {task?.children && task.children.length > 0 ? (
+        <Card>
+          <p className="mb-2 text-sm font-medium">زیروظیفه‌ها</p>
+          <ul className="space-y-2 text-sm">
+            {task.children.map((child) => (
+              <li key={child.id}>
+                <Link href={`/tasks/${child.id}`} className="text-teal-800">
+                  {child.agent_name || "متخصص"} — {taskStatus[child.status] || child.status}
+                </Link>
+                <p className="text-stone-600">{child.goal}</p>
+              </li>
+            ))}
+          </ul>
         </Card>
       ) : null}
       {rows.length === 0 && !loading ? <Empty>هنوز رویدادی ثبت نشده است.</Empty> : null}

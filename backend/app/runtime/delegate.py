@@ -5,7 +5,7 @@ from __future__ import annotations
 from langgraph.types import Command, interrupt
 
 from app.models import Agent
-from app.runtime.context import run_context
+from app.runtime.context import RunContext, run_context
 from app.runtime.graph import build_agent_graph
 
 
@@ -20,7 +20,7 @@ async def run_delegated(*, agent_slug: str, goal: str, context) -> str:
     thread_id = f"{parent.thread_id}:del:{agent_slug}:{abs(hash(goal)) % 100000}"
     graph = build_agent_graph(parent.saver)
     config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 40}
-    child = type(parent)(
+    child = RunContext(
         db=db,
         task_id=parent.task_id,
         user_id=parent.user_id,
@@ -28,6 +28,8 @@ async def run_delegated(*, agent_slug: str, goal: str, context) -> str:
         agent_slug=agent.slug,
         thread_id=thread_id,
         saver=parent.saver,
+        depth=parent.depth + 1,
+        budget=max(2, min(parent.budget, 6)),
     )
     token = run_context.set(child)
     try:

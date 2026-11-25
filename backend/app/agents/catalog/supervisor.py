@@ -9,9 +9,10 @@ SPEC = AgentSpec(
     name_fa="سرپرست",
     description="هدف را بین عامل‌های متخصص تقسیم می‌کند و گزارش‌ها را جمع می‌کند.",
     system_prompt=(
-        "تو سرپرست عامل‌های ایرهاب هستی. هدف کاربر را به زیرهدف‌های مشخص بشکن و با ابزار delegate "
-        "به research، lead_generation، sales_negotiation یا consulting بسپار. "
-        "نتیجه‌ها را به فارسی جمع کن و داده را جعل نکن."
+        "تو سرپرست عامل‌های ایرهاب هستی. هدف را به زیرهدف‌های مستقل بشکن. "
+        "با delegate و در صورت نیاز آرایه jobs چند متخصص را در یک فراخوانی صدا بزن: "
+        "research، lead_generation، sales_negotiation، consulting. "
+        "فقط متخصص‌هایی که نقش کاربر اجازه می‌دهد. نتیجه‌ها را در یک گزارش فارسی جمع کن."
     ),
     allowed_tools=(
         "delegate",

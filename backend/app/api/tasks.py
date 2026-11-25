@@ -24,7 +24,23 @@ TERMINAL = {"completed", "failed", "stopped"}
 
 
 def _out(db: Session, task: AgentTask) -> AgentTaskOut:
+    from app.schemas import AgentTaskChild
+
     agent = db.get(Agent, task.agent_id) if task.agent_id else None
+    children = db.scalars(
+        select(AgentTask).where(AgentTask.parent_task_id == task.id).order_by(AgentTask.created_at)
+    ).all()
+    child_out = []
+    for child in children:
+        child_agent = db.get(Agent, child.agent_id) if child.agent_id else None
+        child_out.append(
+            AgentTaskChild(
+                id=child.id,
+                goal=child.goal,
+                status=child.status,
+                agent_name=child_agent.name_fa if child_agent else None,
+            )
+        )
     return AgentTaskOut(
         id=task.id,
         goal=task.goal,
@@ -36,6 +52,8 @@ def _out(db: Session, task: AgentTask) -> AgentTaskOut:
         error=task.error or "",
         agent_id=task.agent_id,
         agent_name=agent.name_fa if agent else None,
+        parent_task_id=task.parent_task_id,
+        children=child_out,
         created_at=task.created_at,
         updated_at=task.updated_at,
         finished_at=task.finished_at,
