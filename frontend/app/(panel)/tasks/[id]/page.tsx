@@ -52,6 +52,8 @@ const kindLabel: Record<string, string> = {
   "child.task": "زیروظیفه",
   "memory.saved": "حافظه",
   "memory.recalled": "یادآوری",
+  "browser.action": "مرورگر",
+  "browser.screenshot": "نمای مرورگر",
 };
 
 export default function TaskDetailPage() {
@@ -96,6 +98,7 @@ export default function TaskDetailPage() {
   }, [params.id]);
 
   const rows = useMemo(() => groupEvents(events), [events]);
+  const shot = [...events].reverse().find((item) => item.kind === "browser.screenshot" && item.payload.image);
   const status = task?.status ?? "";
 
   async function download(artifact: ArtifactRow) {
@@ -159,6 +162,16 @@ export default function TaskDetailPage() {
               </li>
             ))}
           </ul>
+        </Card>
+      ) : null}
+      {shot ? (
+        <Card>
+          <p className="mb-2 text-sm font-medium">نمای زندهٔ مرورگر</p>
+          <img
+            alt="نمای مرورگر"
+            className="max-h-80 w-full rounded-xl border border-stone-200 object-contain"
+            src={`data:image/jpeg;base64,${String(shot.payload.image)}`}
+          />
         </Card>
       ) : null}
       {rows.length === 0 && !loading ? <Empty>هنوز رویدادی ثبت نشده است.</Empty> : null}

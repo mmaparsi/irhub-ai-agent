@@ -200,7 +200,7 @@ _PREVIOUS_TOOLS = {
 def _sync_builtin_tools(row: Agent, spec) -> None:
     config = dict(row.config or {})
     version = int(config.get("tools_version") or 1)
-    if version >= 5:
+    if version >= 6:
         return
     current = list(row.allowed_tools or [])
     if version < 2:
@@ -221,8 +221,14 @@ def _sync_builtin_tools(row: Agent, spec) -> None:
     for name in ("remember", "recall"):
         if name not in current and "memory_search" in current:
             current.append(name)
+    if row.slug in {"research", "lead_generation", "sales_negotiation", "supervisor"}:
+        from app.tools.browser_agent import BROWSER_TOOL_NAMES
+
+        for name in BROWSER_TOOL_NAMES:
+            if name not in current:
+                current.append(name)
     row.allowed_tools = current
-    config["tools_version"] = 5
+    config["tools_version"] = 6
     row.config = config
     row.updated_at = utcnow()
 

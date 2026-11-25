@@ -95,10 +95,14 @@ def _summary(action_type: str, arguments: dict[str, Any]) -> str:
         return f"ایمیل به {arguments.get('to')}: {arguments.get('subject')}"
     if action_type == "price_offer":
         return f"پیشنهاد قیمت {arguments.get('deal_title')} با تخفیف {arguments.get('discount_percent')}٪"
+    if action_type == "browser":
+        return f"اقدام مرورگر: {arguments.get('summary')}"
     return f"پیام به {arguments.get('to')}"
 
 
 def _perform(action_type: str, arguments: dict[str, Any]) -> str:
+    if action_type == "browser":
+        return "اقدام مرورگر تأیید شد."
     if action_type == "email":
         return send_email_smtp(
             to=str(arguments.get("to") or ""),

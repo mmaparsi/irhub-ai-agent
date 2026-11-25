@@ -1,5 +1,6 @@
 from app.agents.registry import AgentSpec
 from app.config import settings
+from app.tools.browser_agent import BROWSER_TOOL_NAMES
 
 _strong, _fast = settings.resolved_model_defaults()
 
@@ -32,7 +33,8 @@ SPEC = AgentSpec(
         "remember",
         "recall",
         "update_plan",
-    ),
+    )
+    + BROWSER_TOOL_NAMES,
     model_strong=_strong,
     model_fast=_fast,
     temperature=0.4,

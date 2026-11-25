@@ -4,7 +4,7 @@ from typing import Any
 
 from app.config import settings
 
-OUTBOUND_ACTION_TYPES = frozenset({"email", "message", "price_offer"})
+OUTBOUND_ACTION_TYPES = frozenset({"email", "message", "price_offer", "browser"})
 _MAX_TEXT = 20_000
 
 
@@ -61,6 +61,9 @@ def enforce_outbound_rules(
         snapshot["deal_title"] = title
         snapshot["discount_percent"] = discount
         snapshot["amount"] = amount
+    elif action_type == "browser":
+        summary = _required_text(payload, "summary", "شرح اقدام مرورگر لازم است.")
+        snapshot["summary"] = summary
     return snapshot
 
 
