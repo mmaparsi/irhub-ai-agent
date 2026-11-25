@@ -13,7 +13,14 @@ SPEC = AgentSpec(
         "به research، lead_generation، sales_negotiation یا consulting بسپار. "
         "نتیجه‌ها را به فارسی جمع کن و داده را جعل نکن."
     ),
-    allowed_tools=("delegate", "memory_search", "write_report", "update_plan"),
+    allowed_tools=(
+        "delegate",
+        "memory_search",
+        "remember",
+        "recall",
+        "write_report",
+        "update_plan",
+    ),
     model_strong=_strong,
     model_fast=_fast,
     temperature=0.2,

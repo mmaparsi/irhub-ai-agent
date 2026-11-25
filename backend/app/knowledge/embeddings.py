@@ -12,6 +12,36 @@ from app.llm_defaults import GEMINI_EMBEDDING_DIM, GEMINI_EMBEDDING_MODEL, OPENA
 logger = logging.getLogger(__name__)
 
 
+def try_embed(text: str) -> list[float] | None:
+    """Embedding for memory search. None means the caller should use full text."""
+    model = (settings.embedding_model or "").strip()
+    if settings.llm_is_mock() or not model:
+        return None
+    if not (
+        settings.openai_api_key.strip()
+        or settings.gemini_api_key.strip()
+        or settings.llm_api_base.strip()
+    ):
+        return None
+    try:
+        import litellm
+
+        configure_litellm()
+        kwargs: dict = {"model": model, "input": (text or "")[:8000]}
+        if "gemini" in model and "embedding" in model:
+            kwargs["dimensions"] = GEMINI_EMBEDDING_DIM
+        base = api_base_for(model)
+        if base:
+            kwargs["api_base"] = base
+        response = litellm.embedding(**kwargs)
+        vector = _extract_embedding(response)
+        width = settings.embedding_dim or EMBEDDING_DIM
+        return _fit(vector, width)
+    except Exception:
+        logger.warning("embedding failed; memory will use full-text search")
+        return None
+
+
 def embed_text(text: str) -> list[float]:
     """Return a vector of EMBEDDING_DIM (1536), matching the pgvector column.
 

@@ -77,6 +77,16 @@ class Settings(BaseSettings):
     kavenegar_api_key: str = ""
     kavenegar_sender: str = ""
     channel_daily_limit: int = 20
+    embedding_model: str = "openai/text-embedding-3-small"
+    embedding_dim: int = 1536
+    browser_proxy: str = ""
+    browser_blocked_domains: str = ""
+    browser_max_steps: int = 40
+    browser_profile_dir: str = "data/browser-profiles"
+    browser_backend: str = ""
+    browser_static_root: str = ""
+    supervisor_max_depth: int = 2
+    supervisor_max_children: int = 4
     social_playwright_enabled: bool = False
     social_session_cookies: str = ""
     social_playwright_min_seconds: float = 30

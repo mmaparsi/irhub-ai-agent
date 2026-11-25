@@ -238,6 +238,10 @@ def register_builtin_tools() -> None:
 
     for extra in (LinkedInSearchTool(), FacebookSearchTool(), ContactChannelTool()):
         tool_registry.ensure(extra)
+    from app.memory.tools import RecallTool, RememberTool
+
+    for extra in (RememberTool(), RecallTool()):
+        tool_registry.ensure(extra)
 
 
 register_builtin_tools()

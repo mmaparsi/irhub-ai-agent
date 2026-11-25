@@ -23,6 +23,8 @@ SPEC = AgentSpec(
         "knowledge_search",
         "memory_save",
         "memory_search",
+        "remember",
+        "recall",
         "python_exec",
         "write_report",
         "update_plan",

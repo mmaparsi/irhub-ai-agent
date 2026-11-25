@@ -219,6 +219,8 @@ class AgentTask(Base):
     created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
     finished_at: Mapped[Any | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    parent_task_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    depth: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class TaskEvent(Base):
@@ -259,6 +261,21 @@ class AgentMemory(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     meta: Mapped[dict[str, Any]] = mapped_column("metadata", JSON, default=dict)
     created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Memory(Base):
+    __tablename__ = "memories"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    agent_type: Mapped[str] = mapped_column(String(64), default="")
+    entity_type: Mapped[str] = mapped_column(String(32), default="general", index=True)
+    entity_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
+    importance: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_accessed_at: Mapped[Any] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class ChannelPolicy(Base):

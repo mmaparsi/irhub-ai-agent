@@ -61,12 +61,20 @@ async def plan_node(state: AgentRunState) -> dict:
     ctx = run_context.get()
     if _stopped(ctx.db, ctx.task_id):
         return {"status": "stopped", "report": "اجرای وظیفه توسط کاربر متوقف شد."}
+    from app.memory.store import recall_block
+
+    memory = ""
+    try:
+        memory = recall_block(ctx.db, ctx.user_id, ctx.agent_slug, state["goal"], ctx.task_id)
+    except Exception:
+        memory = ""
     result = await complete(
         phase="plan",
         messages=[
             {
                 "role": "system",
                 "content": state["system_prompt"]
+                + (("\n" + memory) if memory else "")
                 + "\nاول فقط یک برنامهٔ کوتاه و شماره‌دار به فارسی بنویس. ابزار را صدا نزن.",
             },
             {"role": "user", "content": state["goal"]},

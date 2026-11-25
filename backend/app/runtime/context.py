@@ -15,6 +15,7 @@ class RunContext:
     agent_slug: str
     thread_id: str
     saver: object
+    depth: int = 0
 
 
 run_context: contextvars.ContextVar[RunContext] = contextvars.ContextVar("run_context")

@@ -21,6 +21,8 @@ SPEC = AgentSpec(
         "search_leads",
         "knowledge_search",
         "memory_search",
+        "remember",
+        "recall",
         "write_report",
         "update_plan",
     ),

@@ -17,6 +17,7 @@ const links = [
   { href: "/approvals", label: "تأییدها" },
   { href: "/leads", label: "سرنخ‌ها" },
   { href: "/knowledge", label: "پایگاه دانش" },
+  { href: "/memory", label: "حافظه" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

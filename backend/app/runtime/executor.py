@@ -118,6 +118,7 @@ async def execute_task(task_id: str, resume: dict | None = None) -> None:
         else:
             task.status = "completed"
             task.finished_at = utcnow()
+            await _remember_outcome(db, task, agent)
         emit_event(
             db,
             task.id,
@@ -156,6 +157,48 @@ def _initial(task: AgentTask, agent: Agent) -> dict:
         "system_prompt": agent.system_prompt,
         "agent_name": agent.name_fa,
     }
+
+
+async def _remember_outcome(db, task: AgentTask, agent: Agent | None) -> None:
+    """Store a durable fact. Mock and scripted runs skip the model so tests stay deterministic."""
+    from app.memory.store import remember
+    from app.runtime.llm import complete, scripted_llm
+
+    report = (task.report or "").strip()
+    if not report or agent is None:
+        return
+    if scripted_llm.get() is not None or settings.llm_is_mock():
+        return
+    text = report[:700]
+    try:
+        summarized = await complete(
+            phase="memory",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "یک واقعیت کوتاه و ماندگار از این گزارش استخراج کن. اگر چیز ماندگاری نیست فقط «-» بنویس.",
+                },
+                {"role": "user", "content": text},
+            ],
+            tools=None,
+            model=agent.model_fast,
+            fast_model=agent.model_fast,
+            temperature=0.1,
+        )
+        text = (summarized.get("content") or "").strip() or text
+    except Exception:
+        logger.warning("task memory summary skipped", exc_info=True)
+    if not text or text == "-":
+        return
+    remember(
+        db,
+        content=text,
+        user_id=task.user_id,
+        agent_type=agent.slug,
+        entity_type="general",
+        importance=2,
+        task_id=task.id,
+    )
 
 
 def _jsonable(value):

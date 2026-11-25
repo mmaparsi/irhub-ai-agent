@@ -29,6 +29,8 @@ SPEC = AgentSpec(
         "contact_channel",
         "memory_save",
         "memory_search",
+        "remember",
+        "recall",
         "update_plan",
     ),
     model_strong=_strong,
